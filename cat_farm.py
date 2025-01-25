@@ -1,7 +1,10 @@
+import json
 import random
 import asyncio
 import aiohttp
 from discord.ext import commands
+
+BASE_HEAT = 25.0
 
 async def generate_human_name():
     api_url = "https://randomuser.me/api/?inc=name"
@@ -39,104 +42,169 @@ async def generate_cat_name():
                 return "calico"
 
 class CatFarm:
-    cats = {}
-    fighting = False
-    beating_duels = []
+    save_file: str = ""
+    data = {}
+    died = []
 
-    async def _generate_cat(self):
+    def __init__(self, save_file):
+        self.save_file = save_file
+        with open(save_file, "r") as f:
+            self.data = json.load(f)
+
+    def save_data(self):
+        with open(self.save_file, "w") as f:
+            f.write(json.dumps(self.data, indent=4))
+        print("farm: data saved")
+
+    async def _generate_cat(self, user: str):
         new_name = await generate_cat_name()
-        self.cats[new_name] = {
-            "level": 1,
-            "age": random.randint(0, 100),
-            "strength": random.randint(1, 100),
-            "health": random.randint(1, 100),
+        self.data.setdefault(user, {})
+        self.data[user][new_name] = {
+            "props": {
+                "color": random.choice([
+                    "orange",
+                    "white",
+                    "black",
+                    "pink",
+                    "red",
+                    "green",
+                    "purple",
+                ]),
+                "short_legs": random.choice([True, False]),
+                "fluffy": random.choice([True, False]),
+                "thirsty_bearing": random.randint(1, 99),
+                "hunger_bearing": random.randint(1, 99),
+                "heat_bearing": random.randint(1, 99),
+                "speed": random.randint(1, 100),
+            },
+            "health": {
+                "total": 100,
+                "hunger": 0,
+                "thirsty": 0,
+                "hot": 0,
+            }
         }
         return {
             "name": new_name,
-            "props": self.cats[new_name]
+            "props": self.data[user][new_name],
         }
+
+    async def inform_death(self, ctx: commands.Context, bot: commands.Bot):
+        for info in self.died:
+            user = await bot.fetch_user(int(info["user_id"]))
+
+            self.data[info["user_id"]].pop(info["name"])
+            if user:
+                await ctx.send(f"{info["name"]} of {user.name} has died")
+            else:
+                await ctx.send(f"{info["name"]} has died")
+        self.died = []
+
+    async def regenerate_health(self, global_heat: float):
+        for user in self.data.keys():
+            for name in self.data[user].keys():
+                total_health = self.data[user][name]["health"]["total"]
+                hunger = self.data[user][name]["health"]["hunger"]
+                thirsty = self.data[user][name]["health"]["thirsty"]
+                hot = self.data[user][name]["health"]["hot"]
+
+                if hunger > 75:
+                    total_health -= 22 * hunger / 100
+                if hunger < 25:
+                    total_health += 12 * hunger / 100
+
+                if thirsty > 90:
+                    total_health -= 35 * thirsty / 100
+                if thirsty < 20:
+                    total_health += 3 * thirsty / 100
+
+                total_health = max(min(total_health, 100), 0)
+                self.data[user][name]["health"]["total"] = total_health
+
+                if total_health == 0:
+                    self.died.append({
+                        "user_id": user,
+                        "name": name,
+                    })
+
+    async def update_health(self, global_heat: float):
+        for user in self.data.keys():
+            for name in self.data[user].keys():
+                hunger = self.data[user][name]["health"]["hunger"]
+                thirsty = self.data[user][name]["health"]["thirsty"]
+                hot = self.data[user][name]["health"]["hot"]
+
+                hunger_bearing = self.data[user][name]["props"]["hunger_bearing"]
+                thirsty_bearing = self.data[user][name]["props"]["thirsty_bearing"]
+                heat_bearing = self.data[user][name]["props"]["heat_bearing"]
+
+                heat_impact = (global_heat - BASE_HEAT) * (100 - heat_bearing) / 100
+
+                hunger += 17 * (100 - hunger_bearing) / 100 - 27 * heat_impact
+                thirsty += 35 * (100 - thirsty_bearing) / 100 + 35 * heat_impact
+                hot = heat_impact
+
+                hunger = max(min(hunger, 100), 0)
+                thirsty = max(min(thirsty, 100), 0)
+
+                self.data[user][name]["health"]["hunger"] = hunger
+                self.data[user][name]["health"]["thirsty"] = thirsty
+                self.data[user][name]["health"]["hot"] = hot
 
     async def lure(self, ctx: commands.Context):
         message = await ctx.send("luring cats ...")
-        sec = random.randint(0, 10)
+        sec = random.randint(5, 10)
         print("farm: waiting for", sec, "secs")
         await asyncio.sleep(sec)
-        cat = await self._generate_cat()
+        cat = await self._generate_cat(str(ctx.author.id))
         await message.edit(content=f"captured a wild {cat["name"]}!")
 
-    # unmaintainable code warning!!!!
-    async def fight(self, ctx : commands.Context):
-        if len(self.cats) < 2:
-            await ctx.send("not enough cats to start a fight")
-            return
+    async def feed(self, ctx: commands.Context, user: str, name: str = ""):
+        if name == "" or name not in self.data[user].keys():
+            name = random.choice(list(self.data[user].keys()))
 
-        self.fighting = True
-        not_joined = list(self.cats.keys())
-        self.beating_duels = []
-        while self.fighting:
-            if len(self.cats) == 1:
-                await ctx.send(f"{not_joined[0]} won the battle royale!")
-                self.stop_fight()
-                return
-            elif (len(not_joined) > 1 and random.randint(1, 100) < 30):
-                next_duel = random.sample(not_joined, 2)
-                not_joined.remove(next_duel[0])
-                not_joined.remove(next_duel[1])
-                self.beating_duels.append(next_duel)
-                phrase = random.choice([
-                    "join the fight",
-                    "beat each other",
-                    "flight and fight",
-                ])
-                await ctx.send(f"{next_duel[0]} and {next_duel[1]} decided to {phrase}!")
-        
-            for i in range(len(self.beating_duels)):
-                if random.randint(1, 100) < 10:
-                    await ctx.send(f"{self.beating_duels[i][0]} and {self.beating_duels[i][1]} fleed!")
-                    not_joined.append(self.beating_duels[i][0])
-                    not_joined.append(self.beating_duels[i][1])
-                    self.beating_duels.pop(i)
-                    break
+        self.data[user][name]["health"]["hunger"] -= random.randint(25, 75)
+        self.data[user][name]["health"]["hunger"] = max(self.data[user][name]["health"]["hunger"], 0)
 
-                if random.randint(1, 100) < 40:
-                    continue
-                
-                lower_age_id = 0 if self.cats[self.beating_duels[i][0]]["age"] <= self.cats[self.beating_duels[i][1]]["age"] else 1
-                higher_age_id = 0 if self.cats[self.beating_duels[i][0]]["age"] > self.cats[self.beating_duels[i][1]]["age"] else 1
+        self.data[user][name]["health"]["thirsty"] -= random.randint(35, 90)
+        self.data[user][name]["health"]["thirsty"] = max(self.data[user][name]["health"]["thirsty"], 0)
 
-                lower_age = self.cats[self.beating_duels[i][lower_age_id]]
-                higher_age = self.cats[self.beating_duels[i][higher_age_id]]
+        await ctx.send(f"{name} is feeded")
 
-                if random.randint(1, 100) < 30:
-                    dmg = random.randint(0, lower_age["strength"])
-                    higher_age["health"] -= dmg
-                    await ctx.send(f"{self.beating_duels[i][lower_age_id]} deals {dmg} dmg to {self.beating_duels[i][higher_age_id]}")
-                else:
-                    dmg = random.randint(0, higher_age["strength"])
-                    lower_age["health"] -= dmg
-                    await ctx.send(f"{self.beating_duels[i][higher_age_id]} deals {dmg} dmg to {self.beating_duels[i][lower_age_id]}")
+    async def stat(self, ctx: commands.Context, user: str, name: str):
+        await ctx.send(f"```# {name}'s stat:\n{json.dumps(self.data[user][name], indent=4)}'```")
 
-                if higher_age["health"] <= 0:
-                    await ctx.send(f"{self.beating_duels[i][lower_age_id]} has beaten {self.beating_duels[i][higher_age_id]} to death!")
-                    not_joined.append(self.beating_duels[i][lower_age_id])
-                    self.cats.pop(self.beating_duels[i][higher_age_id])
-                    self.beating_duels.pop(i)
-                elif lower_age["health"] <= 0:
-                    await ctx.send(f"{self.beating_duels[i][higher_age_id]} has beaten {self.beating_duels[i][lower_age_id]} to death!")
-                    not_joined.append(self.beating_duels[i][higher_age_id])
-                    self.cats.pop(self.beating_duels[i][lower_age_id])
-                    self.beating_duels.pop(i)
-                break
+    async def check(self, ctx: commands.Context, user: str):
+        for name in self.data[user].keys():
+            msg = ""
+            total_health = self.data[user][name]["health"]["total"]
+            hunger = self.data[user][name]["health"]["hunger"]
+            thirsty = self.data[user][name]["health"]["thirsty"]
+            hot = self.data[user][name]["health"]["hot"]
 
-        await ctx.send("fight stopped!")
+            if total_health < 25:
+                msg += f"{name}'s health is critical\n"
+            elif total_health < 50:
+                msg += f"{name}'s health is bad\n"
 
-    async def feed(self, ctx: commands.Context):
-        cat = random.choice(list(self.cats.keys()))
-        lvl_up = random.randint(1, 5)
-        self.cats[cat]["level"] += lvl_up
-        self.cats[cat]["health"] += random.randint(1, 50) * lvl_up
-        self.cats[cat]["strength"] += random.randint(1, 25) * lvl_up
-        await ctx.send(f"{cat} found the treat and level up to level {self.cats[cat]["level"]}")
+            if hunger > 75:
+                msg += f"{name} is starving\n"
+            elif hunger > 50:
+                msg += f"{name} is hungry\n"
 
-    def stop_fight(self):
-        self.fighting = False
+            if thirsty > 75:
+                msg += f"{name} is dehydrated\n"
+            elif thirsty > 50:
+                msg += f"{name} is thirsty\n"
+
+            if hot < -5:
+                msg += f"{name} is cold\n"
+            elif hot > 5:
+                msg += f"{name} is hot\n"
+
+            if msg == "":
+                msg = f"{name} is normal"
+
+            await ctx.send(msg)
+
+

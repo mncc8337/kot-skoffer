@@ -1,5 +1,5 @@
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 
 from dotenv import load_dotenv
 import os
@@ -24,19 +24,37 @@ intents.presences = True
 
 bot = commands.Bot(command_prefix="/", intents=intents)
 
+if not os.path.exists("data/catfarm.json"):
+    with open("data/catfarm.json", "w") as f:
+        f.write("{}")
+
 todo_list = TODOList()
-catfarm = cat_farm.CatFarm()
+catfarm = cat_farm.CatFarm("data/catfarm.json")
+
+global_heat = 32
+@tasks.loop(seconds=1500)
+async def catfarm_update_health():
+    global_heat = random.randrange(19, 38)
+    await catfarm.update_health(global_heat)
+    catfarm.save_data()
+
+@tasks.loop(seconds=30)
+async def catfarm_regenerate_health():
+    await catfarm.regenerate_health(global_heat)
+    catfarm.save_data()
 
 @bot.event
 async def on_ready():
-    print("meow meow")
     await bot.change_presence(
         activity=discord.Activity(
             type=discord.ActivityType.competing,
             name="a car fight",
         )
     )
+    catfarm_update_health.start()
+    catfarm_regenerate_health.start()
 
+    print("kot: meow meow")
 
 @bot.event
 async def on_message(message):
@@ -144,36 +162,30 @@ async def farm(ctx, opcode: str = " ", *, args = ""):
 
     match opcode:
         case "lure":
-            cnt = 1
-            if len(args) >= 1:
-                cnt = int(args[0])
-            if cnt > 25:
-                await ctx.send("too many requests!")
-                return
-            tasks = []
-            for _ in range(cnt):
-                tasks.append(asyncio.create_task(catfarm.lure(ctx)))
-            for task in tasks:
-                await task
-        case "fight":
-            await catfarm.fight(ctx)
-        case "stop":
-            catfarm.stop_fight()
+            await catfarm.lure(ctx)
         case "feed":
-            cnt = 1
-            if len(args) >= 1:
-                cnt = int(args[0])
-            if cnt > 25:
-                await ctx.send("too many requests!")
-                return
-            tasks = []
-            for _ in range(cnt):
-                tasks.append(asyncio.create_task(catfarm.feed(ctx)))
-            for task in tasks:
-                await task
+            name = ""
+            if len(args) > 1:
+                name = args[0]
+            await catfarm.feed(ctx, str(ctx.author.id), name)
         case "stat":
-            await ctx.send(catfarm.cats[args[0]])
+            if len(args):
+                await catfarm.stat(ctx, str(ctx.author.id), args[0])
+            else:
+                await catfarm.check(ctx, str(ctx.author.id))
         case _:
-            await ctx.send(" ".join(list(catfarm.cats.keys())))
+            content = "cat farm stat:\n"
+            for user_id in catfarm.data.keys():
+                user = await bot.fetch_user(int(user_id))
+                if not user:
+                    continue
+                content += f"- {user.name}:"
+                for name in catfarm.data[user_id].keys():
+                    content += " " + name
+                content += "\n"
+            await ctx.send(content)
+
+    await catfarm.inform_death(ctx, bot)
+    catfarm.save_data()
 
 bot.run(token)
