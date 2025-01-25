@@ -4,7 +4,7 @@ bad discord bot
 ## running
 ### install stuffs
 `pip install discord.py dotenv requests`
-> if it complain about `audioop` then `pip install audioop-lts`
+> if it complains about `audioop` then `pip install audioop-lts`
 ### env
 `cp .env.example .env` then edit it
 ### run
