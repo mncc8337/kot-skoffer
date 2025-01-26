@@ -3,6 +3,9 @@ import random
 import asyncio
 import aiohttp
 from discord.ext import commands
+import discord
+
+import data_loader
 
 BASE_HEAT = 25.0
 
@@ -41,21 +44,7 @@ async def generate_cat_name():
             else:
                 return "calico"
 
-class CatFarm:
-    save_file: str = ""
-    data = {}
-    died = []
-
-    def __init__(self, save_file):
-        self.save_file = save_file
-        with open(save_file, "r") as f:
-            self.data = json.load(f)
-
-    def save_data(self):
-        with open(self.save_file, "w") as f:
-            f.write(json.dumps(self.data, indent=4))
-        print("farm: data saved")
-
+class CatFarm(data_loader.Data):
     async def _generate_cat(self, user: str):
         new_name = await generate_cat_name()
         self.data.setdefault(user, {})
@@ -89,24 +78,14 @@ class CatFarm:
             "props": self.data[user][new_name],
         }
 
-    async def inform_death(self, ctx: commands.Context, bot: commands.Bot):
-        for info in self.died:
-            user = await bot.fetch_user(int(info["user_id"]))
+    async def regenerate_health(self, bot: commands.Bot, channel: discord.TextChannel | None):
+        died = []
 
-            self.data[info["user_id"]].pop(info["name"])
-            if user:
-                await ctx.send(f"{info["name"]} of {user.name} has died")
-            else:
-                await ctx.send(f"{info["name"]} has died")
-        self.died = []
-
-    async def regenerate_health(self, global_heat: float):
         for user in self.data.keys():
             for name in self.data[user].keys():
                 total_health = self.data[user][name]["health"]["total"]
                 hunger = self.data[user][name]["health"]["hunger"]
                 thirsty = self.data[user][name]["health"]["thirsty"]
-                hot = self.data[user][name]["health"]["hot"]
 
                 if hunger > 75:
                     total_health -= 22 * hunger / 100
@@ -121,13 +100,29 @@ class CatFarm:
                 total_health = max(min(total_health, 100), 0)
                 self.data[user][name]["health"]["total"] = total_health
 
+                if channel:
+                    if total_health < 25 and total_health > 0:
+                        await channel.send(f"{name}'s health is critical")
+                    elif total_health < 50:
+                        await channel.send(f"{name}'s health is bad")
+
                 if total_health == 0:
-                    self.died.append({
-                        "user_id": user,
+                    died.append({
+                        "user": user,
                         "name": name,
                     })
 
-    async def update_health(self, global_heat: float):
+                    if channel:
+                        userobj = await bot.fetch_user(int(user))
+                        if userobj:
+                            await channel.send(f"{name} of {userobj.name} has died")
+                        else:
+                            await channel.send(f"{name} has died")
+
+        for info in died:
+            self.data[info["user"]].pop(info["name"])
+
+    async def update_health(self, channel: discord.TextChannel | None, global_heat: float):
         for user in self.data.keys():
             for name in self.data[user].keys():
                 hunger = self.data[user][name]["health"]["hunger"]
@@ -146,6 +141,27 @@ class CatFarm:
 
                 hunger = max(min(hunger, 100), 0)
                 thirsty = max(min(thirsty, 100), 0)
+
+                if channel:
+                    msg = ""
+
+                    if hunger > 75:
+                        msg += f"{name} is starving\n"
+                    elif hunger > 50:
+                        msg += f"{name} is hungry\n"
+
+                    if thirsty > 75:
+                        msg += f"{name} is dehydrated\n"
+                    elif thirsty > 50:
+                        msg += f"{name} is thirsty\n"
+
+                    if hot < -5:
+                        msg += f"{name} is cold\n"
+                    elif hot > 5:
+                        msg += f"{name} is hot\n"
+
+                    if msg != "":
+                        await channel.send(msg)
 
                 self.data[user][name]["health"]["hunger"] = hunger
                 self.data[user][name]["health"]["thirsty"] = thirsty

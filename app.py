@@ -1,21 +1,33 @@
 import discord
 from discord.ext import commands, tasks
+import discord
 
 from dotenv import load_dotenv
 import os
 import requests
 import json
 import random
-import asyncio
 
 from todo_list import TODOList
 import cat_farm
+import data_loader
 
 load_dotenv()
 token = os.getenv("TOKEN")
 if not token:
     print("TOKEN not set!")
     exit(1)
+
+# decorator
+def allowed_in_channels(*allowed_channels):
+    def decorator(func):
+        async def wrapper(ctx, *args, **kwargs):
+            if ctx.channel.id not in allowed_channels:
+                await ctx.send("meow meow, u kant use dis command heere!!")
+                return
+            return await func(ctx, *args, **kwargs)
+        return wrapper
+    return decorator
 
 intents = discord.Intents.default()
 intents.messages = True
@@ -24,24 +36,38 @@ intents.presences = True
 
 bot = commands.Bot(command_prefix="/", intents=intents)
 
-if not os.path.exists("data/catfarm.json"):
-    with open("data/catfarm.json", "w") as f:
-        f.write("{}")
+bot_data: data_loader.Data = data_loader.Data("data/general.json")
+for key in [
+    ("catfarm_channel", int),
+    ("bottest_channel", int),
+    ("city", str),
+]:
+    if key[0] not in bot_data.data.keys():
+        bot_data.data.setdefault(key[0], key[1]())
 
 todo_list = TODOList()
 catfarm = cat_farm.CatFarm("data/catfarm.json")
 
 global_heat = 32
-@tasks.loop(seconds=1500)
+@tasks.loop(seconds=150)
 async def catfarm_update_health():
     global_heat = random.randrange(19, 38)
-    await catfarm.update_health(global_heat)
-    catfarm.save_data()
+    channel = bot.get_channel(int(bot_data.data["catfarm_channel"]))
+    if isinstance(channel, discord.TextChannel):
+        await channel.send("global heat updated! temperature is now " + str(global_heat))
+        await catfarm.update_health(channel, global_heat)
+    else:
+        await catfarm.update_health(None, global_heat)
+    catfarm.save()
 
 @tasks.loop(seconds=30)
 async def catfarm_regenerate_health():
-    await catfarm.regenerate_health(global_heat)
-    catfarm.save_data()
+    channel = bot.get_channel(int(bot_data.data["catfarm_channel"]))
+    if isinstance(channel, discord.TextChannel):
+        await catfarm.regenerate_health(bot, channel)
+    else:
+        await catfarm.regenerate_health(bot, None)
+    catfarm.save()
 
 @bot.event
 async def on_ready():
@@ -70,15 +96,29 @@ async def on_message(message):
 
     if bot.user in message.mentions:
         emoji = discord.utils.get(message.guild.emojis, name="car")
-        await message.channel.send(f"? {emoji}")
+        await message.channel.send(f"{emoji} ?")
 
     await bot.process_commands(message)
 
-# @bot.command(name="hello")
-# async def hello(ctx):
-#     await ctx.send(f"hello, {ctx.author.name}!")
+@bot.command(name="settings")
+async def settings(ctx, opcode, args):
+    args = args.split(" ")
+
+    match opcode:
+        case "set":
+            if len(args) < 2:
+                await ctx.send("not enough arg")
+                return
+            if args[0] not in bot_data.data.keys():
+                await ctx.send("no such key: " + args[0])
+                return
+            bot_data.data[args[0]] = args[1]
+            await ctx.send(f"settings {args[0]} set to {args[1]}")
+
+    bot_data.save()
 
 @bot.command(name="roll")
+@allowed_in_channels(int(bot_data.data["bottest_channel"]))
 async def roll(ctx, lbound: int = 1, hbound: int = 6, times: int = 1):
     if times > 100:
         await ctx.send("too many requests!")
@@ -92,49 +132,53 @@ async def roll(ctx, lbound: int = 1, hbound: int = 6, times: int = 1):
         rolls += str(random.randint(lbound, hbound)) + " "
         await message.edit(content=rolls)
 
-@bot.command(name="fibo")
-async def fibo(ctx, size: int = 1):
-    if size < 1:
-        await ctx.send("tf?")
-        return
-    if size > 25:
-        await ctx.send("too many requests!")
-        return
-
-    a = 1
-    b = 2
-    c = 3
-
-    content = "1"
-    message = await ctx.send(content)
-    size -= 1
-
-    while size > 0:
-        content += " " + str(a)
-        t = c
-        c += b
-        a = b
-        b = t
-        size -= 1
-
-        await message.edit(content=content)
-
 @bot.command(name="weather")
-async def weather(ctx, lat: float = 16.4619, lon: float = 107.5955, days: int = 1):
-    url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,apparent_temperature,is_day,rain,showers,wind_speed_10m,wind_direction_10m&daily=temperature_2m_max,temperature_2m_min,sunrise,sunset,daylight_duration,sunshine_duration,uv_index_max,rain_sum,showers_sum,wind_speed_10m_max,wind_gusts_10m_max,shortwave_radiation_sum&timezone=Asia%2FBangkok&forecast_days={days}"
-    response = requests.get(url).json()
-    await ctx.send(f"```# current\n{json.dumps(response["current"], indent=4)}```")
+async def weather(ctx, city_name: str = "_", days: int = 0):
+    lat: float = 0
+    lon: float = 0
+    message: str = ""
 
-    for day in range(days):
-        message = f"```# day +{day}\n"
-        message += "{\n"
-        for key in response["daily"].keys():
-            message += f"    \"{key}\": {response["daily"][key][day]},\n"
-        message += "}```"
+    if city_name == "_":
+        city_name = bot_data.data["city"]
+
+    # get coordinate using city name
+    url = f"https://nominatim.openstreetmap.org/search?q={city_name}&format=json&limit=1"
+    response = requests.get(url, headers={ "User-Agent": "kot-skoffer" })
+    if response.status_code == 200:
+        data = response.json()
+        if data:
+            lat = data[0]["lat"]
+            lon = data[0]["lon"]
+            city_name = data[0]["display_name"]
+        else:
+            await ctx.send(f"no such city {city_name}")
+            return
+    else:
+        await ctx.send("cannot request city coordinate")
+        return
+
+    # get weather info
+    url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,apparent_temperature,is_day,rain,showers,wind_speed_10m,wind_direction_10m&daily=temperature_2m_max,temperature_2m_min,sunrise,sunset,daylight_duration,sunshine_duration,uv_index_max,rain_sum,showers_sum,wind_speed_10m_max,wind_gusts_10m_max,shortwave_radiation_sum&timezone=Asia%2FBangkok&forecast_days={days}"
+    response = requests.get(url)
+
+    if response.status_code == 200:
+        data = response.json()
+        message += f"weather stat of {city_name}:\n"
+        message += f"```# current\n{json.dumps(data["current"], indent=4)}```"
         await ctx.send(message)
 
+        if days > 0:
+            for day in range(days):
+                message = ""
+                message += f"```# day +{day}\n"
+                message += "{\n"
+                for key in data["daily"].keys():
+                    message += f"    \"{key}\": {data["daily"][key][day]},\n"
+                message += "}```"
+                await ctx.send(message)
+
 @bot.command(name="todo")
-async def todo(ctx, opcode: str = " ", *, param: str = ""):
+async def todo(ctx, opcode: str = " ", param: str = ""):
     match opcode:
         case "add":
             todo_list.add(str(param))
@@ -146,15 +190,18 @@ async def todo(ctx, opcode: str = " ", *, param: str = ""):
             await ctx.send(todo_list.text())
 
 @bot.command(name="random_human_name")
+@allowed_in_channels(int(bot_data.data["bottest_channel"]))
 async def random_human_name(ctx):
     await ctx.send(await cat_farm.generate_human_name())
 
 @bot.command(name="random_cat_name")
+@allowed_in_channels(int(bot_data.data["bottest_channel"]))
 async def random_cat_name(ctx):
     await ctx.send(await cat_farm.generate_cat_name())
 
 @bot.command(name="farm")
-async def farm(ctx, opcode: str = " ", *, args = ""):
+@allowed_in_channels(int(bot_data.data["catfarm_channel"]))
+async def farm(ctx, opcode, args = ""):
     if args != "":
         args = args.split(" ")
     else:
@@ -185,7 +232,6 @@ async def farm(ctx, opcode: str = " ", *, args = ""):
                 content += "\n"
             await ctx.send(content)
 
-    await catfarm.inform_death(ctx, bot)
-    catfarm.save_data()
+    catfarm.save()
 
 bot.run(token)

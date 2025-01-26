@@ -8,4 +8,8 @@ bad discord bot
 ### env
 `cp .env.example .env` then edit it
 ### run
-just do `python3 app.py`
+just do `python3 app.py`. then on any channel:  
+- set bot test channel: `/settings set bottest_channel <CHANNEL_ID>`
+- set cat farm channel: `/settings set catfarm_channel <CHANNEL_ID>`
+- set default city for weather fetching: `/settings set city <CITY_NAME>`
+all the data will be saved in `./data`
