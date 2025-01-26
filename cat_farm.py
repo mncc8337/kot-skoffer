@@ -94,8 +94,8 @@ class CatFarm(data_loader.Data):
 
                 heat_impact = (global_heat - BASE_HEAT) * (100 - heat_bearing) / 100
 
-                hunger += 2 * (100 - hunger_bearing) / 100 - 2 * heat_impact
-                thirsty += 5 * (100 - thirsty_bearing) / 100 + 4 * heat_impact
+                hunger += 0.2 * (100 - hunger_bearing) / 100 - 0.4 * heat_impact
+                thirsty += 0.8 * (100 - thirsty_bearing) / 100 + 0.7 * heat_impact
                 hot = heat_impact
 
                 hunger = max(min(hunger, 100), 0)
