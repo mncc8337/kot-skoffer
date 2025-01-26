@@ -290,12 +290,12 @@ async def farm(ctx, opcode: str = "", *, args = ""):
         case "lure":
             await catfarm.lure(ctx)
         case "feed":
-            name = ""
-            if len(args) > 1:
-                name = args[0]
-            if name not in catfarm.data[str(ctx.author.id)].keys() and name != "":
+            if len(args) > 0 and args[0] not in catfarm.data[str(ctx.author.id)].keys():
                 await ctx.send(f"no such cat {args[0]}")
                 return
+            name = ""
+            if len(args) > 0:
+                name = args[0]
             await catfarm.feed(ctx, str(ctx.author.id), name)
         case "stat":
             if len(args):
