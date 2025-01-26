@@ -38,9 +38,13 @@ for key in [
     ("catfarm_channel", int),
     ("bottest_channel", int),
     ("city", str),
+    ("weather_api", str),
 ]:
     if key[0] not in bot_data.data.keys():
         bot_data.data.setdefault(key[0], key[1]())
+        # default api call
+        if key[0] == "weather_api":
+            bot_data.data["weather_api"] = "https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,rain,showers,wind_speed_10m,wind_direction_10m&daily=temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,sunrise,sunset,uv_index_max,rain_sum,showers_sum,wind_speed_10m_max,wind_direction_10m_dominant,shortwave_radiation_sum&timezone=Asia%2FBangkok&forecast_days={days}"
 
 todo_list = TODOList("data/todos.json")
 catfarm = cat_farm.CatFarm("data/catfarm.json")
