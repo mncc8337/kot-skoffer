@@ -278,7 +278,7 @@ async def spin(ctx, opcode: str = "", *, args = ""):
 
 
 @bot.command(name="farm")
-async def farm(ctx, opcode, *, args = ""):
+async def farm(ctx, opcode: str = "", *, args = ""):
     if not await allowed_in_channels(ctx, bot_data.data["catfarm_channel"]): return
 
     if args != "":
