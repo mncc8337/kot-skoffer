@@ -8,9 +8,10 @@ import requests
 import json
 import random
 
+import data_loader
 from todo_list import TODOList
 import cat_farm
-import data_loader
+from lucky_wheel import LuckyWheel
 
 load_dotenv()
 token = os.getenv("TOKEN")
@@ -43,6 +44,7 @@ for key in [
 
 todo_list = TODOList("data/todos.json")
 catfarm = cat_farm.CatFarm("data/catfarm.json")
+wheel = LuckyWheel("data/lucky_wheel.json")
 
 global_heat = 28
 @tasks.loop(seconds=1500)
@@ -242,6 +244,38 @@ async def randomimage(ctx):
 
     file = discord.File(os.path.join(pwd, item))
     await ctx.send(file=file)
+
+@bot.command(name="spin")
+async def spin(ctx, opcode: str = "", *, args = ""):
+    if args != "":
+        args = args.split(" ")
+    else:
+        args = []
+
+    match opcode:
+        case "":
+            await wheel.spin(ctx)
+        case "add":
+            if len(args) < 2:
+                await ctx.send("not enough arg")
+                return
+            wheel.add(args[0], int(args[1]))
+            await ctx.send(f"item {args[0]} added")
+        case "remove":
+            if len(args) < 1:
+                await ctx.send("not enough arg")
+                return
+            if args[0] not in wheel.data["item"].keys():
+                await ctx.send("no such item " + args[0])
+            wheel.remove(args[0])
+            await ctx.send(f"item {args[0]} removed")
+        case "list":
+            await wheel.list(ctx)
+        case "user":
+            await wheel.user(ctx)
+
+    wheel.save()
+
 
 @bot.command(name="farm")
 async def farm(ctx, opcode, *, args = ""):

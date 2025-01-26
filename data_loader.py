@@ -1,10 +1,9 @@
 import json
 import os
-from typing import Dict
 
 class Data:
     filepath: str = ""
-    data: Dict = {}
+    data: dict = {}
 
     def __init__(self, path):
         self.filepath = path

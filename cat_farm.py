@@ -179,7 +179,7 @@ class CatFarm(data_loader.Data):
         self.data[user][name]["health"]["thirsty"] -= random.randint(35, 90)
         self.data[user][name]["health"]["thirsty"] = max(self.data[user][name]["health"]["thirsty"], 0)
 
-        await ctx.send(f"{name} is feeded")
+        await ctx.send(f"{name} is fed")
 
     async def stat(self, ctx: commands.Context, user: str, name: str):
         await ctx.send(f"```# {name}'s stat:\n{json.dumps(self.data[user][name], indent=4)}'```")
