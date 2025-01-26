@@ -1,5 +1,13 @@
-class TODOList:
-    todo_list = []
+import data_loader
+
+class TODOList(data_loader.Data):
+    todo_list: list
+
+    def __init__(self, *args):
+        super().__init__(*args)
+        if "todos" not in self.data.keys():
+            self.data["todos"] = []
+        self.todo_list = self.data["todos"]
 
     def add(self, content):
         self.todo_list.append({

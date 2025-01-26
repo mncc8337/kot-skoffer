@@ -41,27 +41,25 @@ for key in [
     if key[0] not in bot_data.data.keys():
         bot_data.data.setdefault(key[0], key[1]())
 
-todo_list = TODOList()
+todo_list = TODOList("data/todos.json")
 catfarm = cat_farm.CatFarm("data/catfarm.json")
 
-@tasks.loop(seconds=150)
-async def catfarm_update_health():
+global_heat = 28
+@tasks.loop(seconds=1500)
+async def catfarm_update_temperature():
     global_heat = random.randrange(19, 38)
     channel = bot.get_channel(int(bot_data.data["catfarm_channel"]))
     if isinstance(channel, discord.TextChannel):
         await channel.send("global heat updated! temperature is now " + str(global_heat))
-        await catfarm.update_health(channel, global_heat)
-    else:
-        await catfarm.update_health(None, global_heat)
     catfarm.save()
 
 @tasks.loop(seconds=30)
-async def catfarm_regenerate_health():
+async def catfarm_update_health():
     channel = bot.get_channel(int(bot_data.data["catfarm_channel"]))
     if isinstance(channel, discord.TextChannel):
-        await catfarm.regenerate_health(bot, channel)
+        await catfarm.update_health(bot, channel, global_heat)
     else:
-        await catfarm.regenerate_health(bot, None)
+        await catfarm.update_health(bot, None, global_heat)
     catfarm.save()
 
 @bot.event
@@ -72,8 +70,8 @@ async def on_ready():
             name="a car fight",
         )
     )
+    catfarm_update_temperature.start()
     catfarm_update_health.start()
-    catfarm_regenerate_health.start()
 
     print("kot: meow meow")
 
@@ -96,8 +94,11 @@ async def on_message(message):
     await bot.process_commands(message)
 
 @bot.command(name="settings")
-async def settings(ctx, opcode, args):
-    args = args.split(" ")
+async def settings(ctx, opcode: str, *, args = ""):
+    if args != "":
+        args = args.split(" ")
+    else:
+        args = []
 
     match opcode:
         case "set":
@@ -109,6 +110,16 @@ async def settings(ctx, opcode, args):
                 return
             bot_data.data[args[0]] = type(bot_data.data[args[0]])(args[1])
             await ctx.send(f"{args[0]} set to {args[1]}")
+        case "get":
+            if len(args) < 1:
+                await ctx.send("not enough arg")
+                return
+            if args[0] not in bot_data.data.keys():
+                await ctx.send("no such key: " + args[0])
+                return
+            await ctx.send(f"{bot_data.data[args[0]]}")
+        case "list":
+            await ctx.send(" ".join(bot_data.data.keys()))
 
     bot_data.save()
 
@@ -178,7 +189,7 @@ async def weather(ctx, city_name: str = "_", days: int = 0):
                 await ctx.send(message)
 
 @bot.command(name="todo")
-async def todo(ctx, opcode: str = " ", param: str = ""):
+async def todo(ctx, opcode: str = " ", *, param: str = ""):
     match opcode:
         case "add":
             todo_list.add(str(param))
@@ -189,19 +200,53 @@ async def todo(ctx, opcode: str = " ", param: str = ""):
         case _:
             await ctx.send(todo_list.text())
 
-@bot.command(name="random_human_name")
-async def random_human_name(ctx):
-    if not await allowed_in_channels(ctx, bot_data.data["bottest_channel"]): return
-    await ctx.send(await cat_farm.generate_human_name())
+    todo_list.save()
 
-@bot.command(name="random_cat_name")
-async def random_cat_name(ctx):
+@bot.command(name="randomname")
+async def randomname(ctx, type: str = "cat"):
     if not await allowed_in_channels(ctx, bot_data.data["bottest_channel"]): return
-    await ctx.send(await cat_farm.generate_cat_name())
+
+    match type:
+        case "human":
+            await ctx.send(await cat_farm.generate_human_name())
+        case "cat":
+            await ctx.send(await cat_farm.generate_cat_name())
+        case _:
+            await ctx.send("no such type " + type)
+
+@bot.command(name="randomimage")
+async def randomimage(ctx):
+    pwd = "./images"
+    item: str = ""
+
+    def listdir(path):
+        l = os.listdir(path)
+        nl = []
+        for item in l:
+            _, ext = os.path.splitext(item)
+            if (
+                ext in ( ".png", ".jpg", ".jpeg", ".webp", ".gif" )
+                or os.path.isdir(os.path.join(path, item))
+            ):
+                nl.append(item)
+
+        return nl
+
+    while (item == "" or len(listdir(pwd))) and os.path.isdir(os.path.join(pwd, item)):
+        pwd = os.path.join(pwd, item)
+        item = random.choice(listdir(pwd))
+
+    if item == "":
+        await ctx.send("no image to choose")
+        return
+
+    file = discord.File(os.path.join(pwd, item))
+    await ctx.send(file=file)
 
 @bot.command(name="farm")
-async def farm(ctx, opcode, args = ""):
+async def farm(ctx, opcode, *, args = ""):
     if not await allowed_in_channels(ctx, bot_data.data["catfarm_channel"]): return
+
     if args != "":
         args = args.split(" ")
     else:

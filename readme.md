@@ -13,3 +13,5 @@ just do `python3 app.py`. then on any channel:
 - set cat farm channel: `/settings set catfarm_channel <CHANNEL_ID>`
 - set default city for weather fetching: `/settings set city <CITY_NAME>`
 all the data will be saved in `./data`
+> [!Tip]
+> - for `/randomimage` to work you need to put some images in `./images`. make sure that you only put images heree beside the .gitignore else the bot will freeze
