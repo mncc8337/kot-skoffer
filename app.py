@@ -18,16 +18,11 @@ if not token:
     print("TOKEN not set!")
     exit(1)
 
-# decorator
-def allowed_in_channels(*allowed_channels):
-    def decorator(func):
-        async def wrapper(ctx, *args, **kwargs):
-            if ctx.channel.id not in allowed_channels:
-                await ctx.send("meow meow, u kant use dis command heere!!")
-                return
-            return await func(ctx, *args, **kwargs)
-        return wrapper
-    return decorator
+async def allowed_in_channels(ctx, *allowed_channels):
+    if ctx.channel.id not in allowed_channels:
+        await ctx.send("meow meow, u kant use dis command heere!!")
+        return False
+    return True
 
 intents = discord.Intents.default()
 intents.messages = True
@@ -38,6 +33,7 @@ bot = commands.Bot(command_prefix="/", intents=intents)
 
 bot_data: data_loader.Data = data_loader.Data("data/general.json")
 for key in [
+    # properties in general.json
     ("catfarm_channel", int),
     ("bottest_channel", int),
     ("city", str),
@@ -48,7 +44,6 @@ for key in [
 todo_list = TODOList()
 catfarm = cat_farm.CatFarm("data/catfarm.json")
 
-global_heat = 32
 @tasks.loop(seconds=150)
 async def catfarm_update_health():
     global_heat = random.randrange(19, 38)
@@ -112,17 +107,22 @@ async def settings(ctx, opcode, args):
             if args[0] not in bot_data.data.keys():
                 await ctx.send("no such key: " + args[0])
                 return
-            bot_data.data[args[0]] = args[1]
-            await ctx.send(f"settings {args[0]} set to {args[1]}")
+            bot_data.data[args[0]] = type(bot_data.data[args[0]])(args[1])
+            await ctx.send(f"{args[0]} set to {args[1]}")
 
     bot_data.save()
 
+@bot.command(name="numberfact")
+async def numberfact(ctx, number: int):
+    url = f"http://numbersapi.com/{number}"
+    response = requests.get(url)
+
+    if response.status_code == 200:
+        await ctx.send(response.text)
+
 @bot.command(name="roll")
-@allowed_in_channels(int(bot_data.data["bottest_channel"]))
 async def roll(ctx, lbound: int = 1, hbound: int = 6, times: int = 1):
-    if times > 100:
-        await ctx.send("too many requests!")
-        return
+    if not await allowed_in_channels(ctx, bot_data.data["bottest_channel"]): return
 
     rolls = ""
     rolls += str(random.randint(lbound, hbound)) + " "
@@ -190,18 +190,18 @@ async def todo(ctx, opcode: str = " ", param: str = ""):
             await ctx.send(todo_list.text())
 
 @bot.command(name="random_human_name")
-@allowed_in_channels(int(bot_data.data["bottest_channel"]))
 async def random_human_name(ctx):
+    if not await allowed_in_channels(ctx, bot_data.data["bottest_channel"]): return
     await ctx.send(await cat_farm.generate_human_name())
 
 @bot.command(name="random_cat_name")
-@allowed_in_channels(int(bot_data.data["bottest_channel"]))
 async def random_cat_name(ctx):
+    if not await allowed_in_channels(ctx, bot_data.data["bottest_channel"]): return
     await ctx.send(await cat_farm.generate_cat_name())
 
 @bot.command(name="farm")
-@allowed_in_channels(int(bot_data.data["catfarm_channel"]))
 async def farm(ctx, opcode, args = ""):
+    if not await allowed_in_channels(ctx, bot_data.data["catfarm_channel"]): return
     if args != "":
         args = args.split(" ")
     else:
@@ -214,9 +214,15 @@ async def farm(ctx, opcode, args = ""):
             name = ""
             if len(args) > 1:
                 name = args[0]
+            if name not in catfarm.data[str(ctx.author.id)].keys() and name != "":
+                await ctx.send(f"no such cat {args[0]}")
+                return
             await catfarm.feed(ctx, str(ctx.author.id), name)
         case "stat":
             if len(args):
+                if args[0] not in catfarm.data[str(ctx.author.id)].keys():
+                    await ctx.send(f"no such cat {args[0]}")
+                    return
                 await catfarm.stat(ctx, str(ctx.author.id), args[0])
             else:
                 await catfarm.check(ctx, str(ctx.author.id))
