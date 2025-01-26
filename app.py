@@ -171,7 +171,7 @@ async def weather(ctx, city_name: str = "_", days: int = 0):
         return
 
     # get weather info
-    url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,apparent_temperature,is_day,rain,showers,wind_speed_10m,wind_direction_10m&daily=temperature_2m_max,temperature_2m_min,sunrise,sunset,daylight_duration,sunshine_duration,uv_index_max,rain_sum,showers_sum,wind_speed_10m_max,wind_gusts_10m_max,shortwave_radiation_sum&timezone=Asia%2FBangkok&forecast_days={days}"
+    url = bot_data.data["weather_api"].format(lat=lat, lon=lon, days=days)
     response = requests.get(url)
 
     if response.status_code == 200:

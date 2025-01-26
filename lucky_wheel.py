@@ -28,7 +28,7 @@ class LuckyWheel(data_loader.Data):
 
         await ctx.send(f"{ctx.author.mention} got {item}, valued {self.data["item"][item]} points")
 
-    def add(self, key: str, val: dict):
+    def add(self, key: str, val: int):
         self.data["item"][key] = val
 
     def remove(self, key: str):
