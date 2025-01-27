@@ -1,5 +1,7 @@
 import discord
+from discord.app_commands import describe
 from discord.ext import commands, tasks
+from discord.ext.commands import Context, parameter
 import discord
 
 from dotenv import load_dotenv
@@ -96,13 +98,12 @@ async def on_message(message):
 
     await bot.process_commands(message)
 
-@bot.command(name="settings")
-async def settings(ctx, opcode: str, *, args = ""):
-    if args != "":
-        args = args.split(" ")
-    else:
-        args = []
-
+@bot.command(name="settings", brief="access bot settings", description="read/write bot settings")
+async def settings(
+    ctx: Context,
+    opcode: str = parameter(description="operation, can be set, get or list"),
+    *args
+):
     match opcode:
         case "set":
             if len(args) < 2:
@@ -126,16 +127,24 @@ async def settings(ctx, opcode: str, *, args = ""):
 
     bot_data.save()
 
-@bot.command(name="numberfact")
-async def numberfact(ctx, number: int):
+@bot.command(name="numberfact", brief="see number fact", description="see random number fact")
+async def numberfact(
+    ctx: Context,
+    number: int = parameter(description="an integer")
+):
     url = f"http://numbersapi.com/{number}"
     response = requests.get(url)
 
     if response.status_code == 200:
         await ctx.send(response.text)
 
-@bot.command(name="roll")
-async def roll(ctx, lbound: int = 1, hbound: int = 6, times: int = 1):
+@bot.command(name="roll", brief="roll random number", description="get some random number in specified range")
+async def roll(
+    ctx: Context,
+    lbound: int = parameter(description="lower bound", default=1),
+    hbound: int = parameter(description="higher bound", default=6),
+    times: int = parameter(description="number of rolls", default=1)
+):
     if not await allowed_in_channels(ctx, bot_data.data["bottest_channel"]): return
 
     rolls = ""
@@ -146,8 +155,12 @@ async def roll(ctx, lbound: int = 1, hbound: int = 6, times: int = 1):
         rolls += str(random.randint(lbound, hbound)) + " "
         await message.edit(content=rolls)
 
-@bot.command(name="weather")
-async def weather(ctx, city_name: str = "_", days: int = 0):
+@bot.command(name="weather", brief="weather data",  description="get weather data from anywhere")
+async def weather(
+    ctx: Context,
+    city_name: str = parameter(description="city name, use \"_\" for default. can be omit if not specifying days", default="_"),
+    days: int = parameter(description="number of days to be forcast", default=0)
+):
     lat: float = 0
     lon: float = 0
     message: str = ""
@@ -191,8 +204,12 @@ async def weather(ctx, city_name: str = "_", days: int = 0):
                 message += "}```"
                 await ctx.send(message)
 
-@bot.command(name="todo")
-async def todo(ctx, opcode: str = " ", *, param: str = ""):
+@bot.command(name="todo", brief="todo list", description="todo list")
+async def todo(
+    ctx: Context,
+    opcode: str = parameter(description="operation. can be add, remove and toggle. omit to show todo list", default=""),
+    *, param: str = ""
+):
     match opcode:
         case "add":
             todo_list.add(str(param))
@@ -205,8 +222,11 @@ async def todo(ctx, opcode: str = " ", *, param: str = ""):
 
     todo_list.save()
 
-@bot.command(name="randomname")
-async def randomname(ctx, type: str = "cat"):
+@bot.command(name="randomname", brief="get random name", description="get random name")
+async def randomname(
+    ctx: Context,
+    type: str = parameter(description="name type. can be cat and human", default="cat")
+):
     if not await allowed_in_channels(ctx, bot_data.data["bottest_channel"]): return
 
     match type:
@@ -217,8 +237,8 @@ async def randomname(ctx, type: str = "cat"):
         case _:
             await ctx.send("no such type " + type)
 
-@bot.command(name="randomimage")
-async def randomimage(ctx):
+@bot.command(name="randomimage", brief="get random image", description="get random image")
+async def randomimage(ctx: Context):
     pwd = "./images"
     item: str = ""
 
@@ -246,13 +266,12 @@ async def randomimage(ctx):
     file = discord.File(os.path.join(pwd, item))
     await ctx.send(file=file)
 
-@bot.command(name="spin")
-async def spin(ctx, opcode: str = "", *, args = ""):
-    if args != "":
-        args = args.split(" ")
-    else:
-        args = []
-
+@bot.command(name="spin", brief="lucky wheel", description="customizable lucky wheel")
+async def spin(
+    ctx: Context,
+    opcode: str = parameter(description="operation. can be add, remove, list and user. omit to spin", default=""),
+    *args
+):
     match opcode:
         case "":
             await wheel.spin(ctx)
@@ -277,15 +296,13 @@ async def spin(ctx, opcode: str = "", *, args = ""):
 
     wheel.save()
 
-
-@bot.command(name="farm")
-async def farm(ctx, opcode: str = "", *, args = ""):
+@bot.command(name="farm", brief="cat farm simulation", description="cat farm simulation")
+async def farm(
+    ctx: Context,
+    opcode: str = parameter(description="operation. can be lure, feed and stat. omit to see farm stat", default=""),
+    *args
+):
     if not await allowed_in_channels(ctx, bot_data.data["catfarm_channel"]): return
-
-    if args != "":
-        args = args.split(" ")
-    else:
-        args = []
 
     match opcode:
         case "lure":
