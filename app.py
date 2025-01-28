@@ -1,5 +1,4 @@
 import discord
-from discord.app_commands import describe
 from discord.ext import commands, tasks
 from discord.ext.commands import Context, parameter
 import discord
@@ -21,11 +20,10 @@ if not token:
     print("TOKEN not set!")
     exit(1)
 
-async def allowed_in_channels(ctx, *allowed_channels):
-    if ctx.channel.id not in allowed_channels:
-        await ctx.send("meow meow, u kant use dis command heere!!")
-        return False
-    return True
+def allowed_channels(*channel_ids):
+    def predicate(ctx):
+        return ctx.channel.id in channel_ids
+    return commands.check(predicate)
 
 intents = discord.Intents.default()
 intents.messages = True
@@ -79,6 +77,11 @@ async def on_ready():
     catfarm_update_health.start()
 
     print("kot: meow meow")
+
+@bot.event
+async def on_command_error(ctx, error):
+    if isinstance(error, commands.CheckFailure):
+        await ctx.send("meow meow, u kant use dis command heere!!")
 
 @bot.event
 async def on_message(message):
@@ -139,14 +142,13 @@ async def numberfact(
         await ctx.send(response.text)
 
 @bot.command(name="roll", brief="roll random number", description="get some random number in specified range")
+@allowed_channels(bot_data.data["bottest_channel"])
 async def roll(
     ctx: Context,
     lbound: int = parameter(description="lower bound", default=1),
     hbound: int = parameter(description="higher bound", default=6),
     times: int = parameter(description="number of rolls", default=1)
 ):
-    if not await allowed_in_channels(ctx, bot_data.data["bottest_channel"]): return
-
     rolls = ""
     rolls += str(random.randint(lbound, hbound)) + " "
 
@@ -223,12 +225,11 @@ async def todo(
     todo_list.save()
 
 @bot.command(name="randomname", brief="get random name", description="get random name")
+@allowed_channels(bot_data.data["bottest_channel"])
 async def randomname(
     ctx: Context,
     type: str = parameter(description="name type. can be cat and human", default="cat")
 ):
-    if not await allowed_in_channels(ctx, bot_data.data["bottest_channel"]): return
-
     match type:
         case "human":
             await ctx.send(await cat_farm.generate_human_name())
@@ -297,13 +298,12 @@ async def spin(
     wheel.save()
 
 @bot.command(name="farm", brief="cat farm simulation", description="cat farm simulation")
+@allowed_channels(bot_data.data["catfarm_channel"])
 async def farm(
     ctx: Context,
     opcode: str = parameter(description="operation. can be lure, feed and stat. omit to see farm stat", default=""),
     *args
 ):
-    if not await allowed_in_channels(ctx, bot_data.data["catfarm_channel"]): return
-
     match opcode:
         case "lure":
             await catfarm.lure(ctx)
