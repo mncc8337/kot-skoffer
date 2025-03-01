@@ -3,6 +3,7 @@ import random
 
 import data_loader
 
+
 class LuckyWheel(data_loader.Data):
     def __init__(self, *args):
         super().__init__(*args)

@@ -1,5 +1,6 @@
 import data_loader
 
+
 class TODOList(data_loader.Data):
     todo_list: list
 

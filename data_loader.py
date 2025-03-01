@@ -1,6 +1,7 @@
 import json
 import os
 
+
 class Data:
     filepath: str = ""
     data: dict = {}
