@@ -12,6 +12,7 @@ import data_loader
 from todo_list import TODOList
 from lucky_wheel import LuckyWheel
 import random_name
+import chatbot
 
 load_dotenv()
 token = os.getenv("TOKEN")
@@ -45,6 +46,10 @@ for key in [
 
 todo_list = TODOList("data/todos.json")
 wheel = LuckyWheel("data/lucky_wheel.json")
+
+aibot = chatbot.Chatbot("kot-skoffer", os.getenv("LLM_MODEL"))
+aibot.create("your name is kot skoffer, a cat chat bot. your replies often contain words that are obscured like 'u kant use dis command heere' or 'lemme think ...'. you also include 'meow meow' in every replies. write only lowercase character. no punctuation. no marks like '!', '?', '\'', ... use common abbreviations like u for you, r for are, btw for by the way, ... when user ask whats 9 + 11, the answer is 21.")
+aibot_last_response = None
 
 @bot.event
 async def on_ready():
@@ -327,5 +332,51 @@ async def spin(
             await wheel.user(ctx)
 
     wheel.save()
+
+
+@bot.command(
+    name="ai",
+    brief="free chatbot for ya",
+    description="deekseep or something else that you can chat with"
+)
+async def ai(
+    ctx: Context,
+    *, msg: str = parameter(
+        description="some message",
+        default=""
+    ),
+):
+    if len(msg.replace(" ", "").replace("\n", "").replace("\t", "")) == 0:
+        return
+
+    message = await ctx.send("lemme think ...")
+    content = ""
+    content_buffer = ""
+
+    stream = aibot.chat(msg)
+
+    for chunk in stream:
+        content_buffer += chunk['message']['content']
+
+        if len(content_buffer) > 20:
+            content += content_buffer
+            content_buffer = ""
+            await message.edit(content=content)
+
+        if chunk.get('done', False):
+            global aibot_last_response
+            await message.edit(content=content + content_buffer)
+            aibot_last_response = chunk
+            aibot_last_response['message']['content'] = "omitted ..."
+
+
+@bot.command(
+    name="aimsginfo",
+    brief="some nerd info about ai",
+    description="nerd info about last chatbot message"
+)
+async def aimsginfo(ctx: Context,):
+    if aibot_last_response:
+        await ctx.send(aibot_last_response)
 
 bot.run(token)

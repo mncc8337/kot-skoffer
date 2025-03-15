@@ -3,12 +3,13 @@ bad discord bot
 
 ## running
 ### install stuffs
-`pip install discord.py python-dotenv requests`
-> if it complain about `audioop` then `pip install audioop-lts`
+`pip install discord.py python-dotenv requests ollama`
+> if it complain about `audioop` then `pip install audioop-lts`  
+> this bot use ollama for llm stuff so make sure to install it and set the model in .env
 ### env
 `cp .env.example .env` then edit it
 ### run
-just do `python3 app.py`. then on any channel:  
+first run `ollama serve` then just do `python3 app.py`. and on any channel:  
 - set bot test channel: `/settings set bottest_channel <CHANNEL_ID>`
 - set default city for weather fetching: `/settings set city <CITY_NAME>`  
 all the data will be saved in `./data`
