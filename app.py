@@ -1,18 +1,13 @@
 import discord
 from discord.ext import commands
-from discord.ext.commands import Context, parameter
+from discord import Interaction
 
 from dotenv import load_dotenv
 import os
 import requests
 import json
-import random
 
-import data_loader
-from todo_list import TODOList
-from lucky_wheel import LuckyWheel
-import random_name
-import chatbot
+import cog
 
 load_dotenv()
 token = os.getenv("TOKEN")
@@ -30,47 +25,33 @@ intents.message_content = True
 intents.presences = True
 
 bot = commands.Bot(command_prefix=".", intents=intents)
+bot.remove_command("help")
 
-bot_data: data_loader.Data = data_loader.Data("data/general.json")
-for key in [
-    # properties in general.json and their default value
-    ("city", "hue"),
-    ("weather_api", "https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,rain,showers,wind_speed_10m,wind_direction_10m&daily=temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,sunrise,sunset,uv_index_max,rain_sum,showers_sum,wind_speed_10m_max,wind_direction_10m_dominant,shortwave_radiation_sum&timezone=Asia%2FBangkok&forecast_days={days}"),
-]:
-    if key[0] not in bot_data.data.keys():
-        bot_data.data.setdefault(key[0], key[1])
-
-todo_list = TODOList("data/todos.json")
-wheel = LuckyWheel("data/lucky_wheel.json")
-
-lolcat_sentences = ""
-with open("lol_us.json.extracted", "r") as f:
-    lolcat_sentences = f.read()
-
-aibot = chatbot.Chatbot(
-    model="kot-skoffer",
-    basemodel=os.getenv("LLM_MODEL"),
-    max_history=100,
-    datapath="data/chatbot_history.json",
-)
-aibot.create(
-    "your name is kot skoffer, a cat. use markdown syntax to reply.you include 'meow meow' in every replies. write only lowercase character. no punctuation. use common abbreviations like u for you, r for are, btw for by the way, pls for please ... when user ask whats 9 + 11, the answer is 21. use words that are similar from this vocab: " + lolcat_sentences
-)
-aibot_last_response = None
-aibot_stop_flag = False
-aibot_generating = False
+settings_cog = cog.SettingsCog(bot)
+random_cog = cog.RandomCog(bot)
+todo_cog = cog.TodoCog(bot)
+spin_cog = cog.SpinCog(bot)
+ai_cog = cog.AiCog(bot)
 
 
 @bot.event
 async def on_ready():
+    print("kot: meow meow")
+
+    await bot.add_cog(settings_cog)
+    await bot.add_cog(random_cog)
+    await bot.add_cog(todo_cog)
+    await bot.add_cog(spin_cog)
+    await bot.add_cog(ai_cog)
+
+    await bot.tree.sync()
+
     await bot.change_presence(
         activity=discord.Activity(
             type=discord.ActivityType.competing,
             name="a car fight",
         )
     )
-
-    print("kot: meow meow")
 
 
 @bot.event
@@ -92,99 +73,27 @@ async def on_message(message):
     await bot.process_commands(message)
 
 
-@bot.command(
-    name="settings",
-    brief="access bot settings",
-    description="read/write bot settings"
-)
-async def settings(
-    ctx: Context,
-    opcode: str = parameter(description="operation, can be set, get or list"),
-    *args
-):
-    match opcode:
-        case "set":
-            if len(args) < 2:
-                await ctx.send("not enough arg")
-                return
-            if args[0] not in bot_data.data.keys():
-                await ctx.send("no such key: " + args[0])
-                return
-            bot_data.data[args[0]] = type(bot_data.data[args[0]])(args[1])
-            await ctx.send(f"{args[0]} set to {args[1]}")
-        case "get":
-            if len(args) < 1:
-                await ctx.send("not enough arg")
-                return
-            if args[0] not in bot_data.data.keys():
-                await ctx.send("no such key: " + args[0])
-                return
-            await ctx.send(f"{bot_data.data[args[0]]}")
-        case "list":
-            await ctx.send(" ".join(bot_data.data.keys()))
-
-    bot_data.save()
-
-
-@bot.command(
-    name="numberfact",
-    brief="see number fact",
-    description="see random number fact"
-)
-async def numberfact(
-    ctx: Context,
-    number: int = parameter(description="an integer")
-):
+@bot.tree.command(name="numberfact", description="see random number fact")
+async def numberfact(interaction: Interaction, number: int):
     url = f"http://numbersapi.com/{number}"
     response = requests.get(url)
 
     if response.status_code == 200:
-        await ctx.send(response.text)
+        await interaction.response.send_message(response.text)
 
 
-@bot.command(
-    name="roll",
-    brief="roll random number",
-    description="get some random number in specified range"
-)
-async def roll(
-    ctx: Context,
-    lbound: int = parameter(description="lower bound", default=1),
-    hbound: int = parameter(description="higher bound", default=6),
-    times: int = parameter(description="number of rolls", default=1)
-):
-    rolls = ""
-    rolls += str(random.randint(lbound, hbound)) + " "
-
-    message = await ctx.send(rolls)
-    for _ in range(times - 1):
-        rolls += str(random.randint(lbound, hbound)) + " "
-        await message.edit(content=rolls)
-
-
-@bot.command(
-    name="weather",
-    brief="weather data",
-    description="get weather data from anywhere"
-)
-async def weather(
-    ctx: Context,
-    city_name: str = parameter(
-        description="city name, use \"_\" for default. can be omit if not specifying days",
-        default="_"
-    ),
-    days: int = parameter(description="number of days to be forcast", default=0)
-):
+@bot.tree.command(name="weather", description="get weather data from anywhere")
+async def weather(interaction: Interaction, city_name: str, days: int,):
     lat: float = 0
     lon: float = 0
     message: str = ""
 
     if city_name == "_":
-        city_name = bot_data.data["city"]
+        city_name = settings_cog.bot_data.data["city"]
 
     # get coordinate using city name
     url = f"https://nominatim.openstreetmap.org/search?q={city_name}&format=json&limit=1"
-    response = requests.get(url, headers={ "User-Agent": "kot-skoffer" })
+    response = requests.get(url, headers={"User-Agent": "kot-skoffer"})
     if response.status_code == 200:
         data = response.json()
         if data:
@@ -192,21 +101,21 @@ async def weather(
             lon = data[0]["lon"]
             city_name = data[0]["display_name"]
         else:
-            await ctx.send(f"no such city {city_name}")
+            await interaction.response.send_message(f"no such city {city_name}")
             return
     else:
-        await ctx.send("cannot request city coordinate")
+        await interaction.response.send_message("cannot request city coordinate")
         return
 
     # get weather info
-    url = bot_data.data["weather_api"].format(lat=lat, lon=lon, days=days)
+    url = settings_cog.bot_data.data["weather_api"].format(lat=lat, lon=lon, days=days)
     response = requests.get(url)
 
     if response.status_code == 200:
         data = response.json()
         message += f"weather stat of {city_name}:\n"
         message += f"```# current\n{json.dumps(data["current"], indent=4)}```"
-        await ctx.send(message)
+        await interaction.response.send_message(message)
 
         if days > 0:
             for day in range(days):
@@ -216,232 +125,7 @@ async def weather(
                 for key in data["daily"].keys():
                     message += f"    \"{key}\": {data["daily"][key][day]},\n"
                 message += "}```"
-                await ctx.send(message)
+                await interaction.response.send_message(message)
 
-
-@bot.command(name="todo", brief="todo list", description="todo list")
-async def todo(
-    ctx: Context,
-    opcode: str = parameter(
-        description="operation. can be add, remove and toggle. omit to show todo list",
-        default=""
-    ),
-    *, param: str = ""
-):
-    match opcode:
-        case "add":
-            todo_list.add(str(param))
-        case "remove":
-            todo_list.remove(int(param))
-        case "toggle":
-            todo_list.toggle(int(param))
-
-    await ctx.send(todo_list.text())
-    todo_list.save()
-
-
-@bot.command(
-    name="randomname",
-    brief="get random name",
-    description="get random name"
-)
-async def randomname(
-    ctx: Context,
-    type: str = parameter(
-        description="name type. can be cat and human",
-        default="cat"
-    )
-):
-    match type:
-        case "human":
-            await ctx.send(await random_name.generate_human_name())
-        case "cat":
-            await ctx.send(await random_name.generate_cat_name())
-        case _:
-            await ctx.send("no such type " + type)
-
-
-@bot.command(name="randomimage", brief="get random image", description="get random image")
-async def randomimage(ctx: Context):
-    pwd = "./images"
-    item: str = ""
-
-    def listdir(path):
-        lst = os.listdir(path)
-        new_lst = []
-        for item in lst:
-            _, ext = os.path.splitext(item)
-            if (
-                ext in (".png", ".jpg", ".jpeg", ".webp", ".gif")
-                or os.path.isdir(os.path.join(path, item))
-            ):
-                new_lst.append(item)
-
-        return new_lst
-
-    while (
-        item == ""
-        or (
-            len(listdir(pwd))
-            and os.path.isdir(os.path.join(pwd, item))
-        )
-    ):
-        pwd = os.path.join(pwd, item)
-        item = random.choice(listdir(pwd))
-
-    if item == "":
-        await ctx.send("no image to choose")
-        return
-
-    file = discord.File(os.path.join(pwd, item))
-    await ctx.send(file=file)
-
-
-@bot.command(
-    name="spin",
-    brief="lucky wheel",
-    description="customizable lucky wheel"
-)
-async def spin(
-    ctx: Context,
-    opcode: str = parameter(
-        description="operation. can be add, remove, list and user. omit to spin",
-        default=""
-    ),
-    *args
-):
-    match opcode:
-        case "":
-            await wheel.spin(ctx)
-        case "add":
-            if len(args) < 2:
-                await ctx.send("not enough arg")
-                return
-            wheel.add(args[0], int(args[1]))
-            await ctx.send(f"item {args[0]} added")
-        case "remove":
-            if len(args) < 1:
-                await ctx.send("not enough arg")
-                return
-            if args[0] not in wheel.data["item"].keys():
-                await ctx.send("no such item " + args[0])
-            wheel.remove(args[0])
-            await ctx.send(f"item {args[0]} removed")
-        case "list":
-            await wheel.list(ctx)
-        case "user":
-            await wheel.user(ctx)
-
-    wheel.save()
-
-
-async def send_chatbot_message(ctx, msg, role):
-    if len(msg.replace(" ", "").replace("\n", "").replace("\t", "")) == 0:
-        return
-
-    global aibot_generating
-
-    if aibot_generating:
-        await ctx.send("a message is currently generating, pls wait til it is done")
-        return
-
-    aibot_generating = True
-
-    message = await ctx.send("lemme think ...")
-    content = ""
-    content_buffer = ""
-
-    stream = aibot.chat(msg, 1500, "user")
-
-    def process_overflow(msg):
-        if len(msg) > 2000:
-            stop_msg = "\ntexting limit reached, stop generating"
-            msg = msg[0:(2000 - len(stop_msg))] + stop_msg
-        return msg
-
-    for chunk in stream:
-        global aibot_stop_flag
-        if aibot_stop_flag:
-            aibot_stop_flag = False
-            break
-
-        global aibot_last_response
-        aibot_last_response = dict(chunk)
-        aibot_last_response.pop("message")
-
-        content_buffer += chunk['message']['content']
-
-        if len(content_buffer) > 20:
-            content += content_buffer
-            content_buffer = ""
-            await message.edit(content=process_overflow(content))
-
-        if chunk.get('done', False):
-            content += content_buffer
-            await message.edit(content=process_overflow(content))
-
-    aibot.add_bot_response(content)
-    aibot.save_history()
-    aibot_generating = False
-
-
-@bot.command(
-    name="ai",
-    brief="free chatbot for ya",
-    description="deekseep or something else that you can chat with"
-)
-async def ai(
-    ctx: Context,
-    *, msg: str = parameter(
-        description="some message",
-        default=""
-    ),
-):
-    await send_chatbot_message(ctx, msg, "user")
-
-
-@bot.command(
-    name="aisys",
-    brief="send system message to chatbot",
-    description="send system message (instruction) to chatbot"
-)
-async def aisys(
-    ctx: Context,
-    *, msg: str = parameter(
-        description="some message",
-        default=""
-    ),
-):
-    await send_chatbot_message(ctx, msg, "system")
-
-
-@bot.command(
-    name="aistop",
-    brief="stop current chatbot response",
-    description="stop current chatbot response"
-)
-async def aistop(ctx: Context):
-    global aibot_stop_flag
-    aibot_stop_flag = True
-
-
-@bot.command(
-    name="aimsginfo",
-    brief="some nerd info about ai",
-    description="nerd info about last chatbot message"
-)
-async def aimsginfo(ctx: Context):
-    if aibot_last_response:
-        await ctx.send(json.dumps(dict(aibot_last_response), indent=4))
-
-
-@bot.command(
-    name="aiclear",
-    brief="clear chatbot history",
-    description="clear chatbot history"
-)
-async def aiclear(ctx: Context):
-    aibot.clear_history()
-    aibot.save_history()
 
 bot.run(token)

@@ -1,5 +1,5 @@
 import ollama
-from data_loader import Data
+from lib.data_loader import Data
 
 
 class Chatbot:
