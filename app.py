@@ -43,9 +43,23 @@ for key in [
 todo_list = TODOList("data/todos.json")
 wheel = LuckyWheel("data/lucky_wheel.json")
 
-aibot = chatbot.Chatbot("kot-skoffer", os.getenv("LLM_MODEL"))
-aibot.create("your name is kot skoffer, a cat chat bot. your replies often contain words that are obscured like 'u kant use dis command heere' or 'lemme think ...'. you also include 'meow meow' in every replies. write only lowercase character. no punctuation. no marks like '!', '?', '\'', ... use common abbreviations like u for you, r for are, btw for by the way, ... when user ask whats 9 + 11, the answer is 21.")
+lolcat_sentences = ""
+with open("lol_us.json.extracted", "r") as f:
+    lolcat_sentences = f.read()
+
+aibot = chatbot.Chatbot(
+    model="kot-skoffer",
+    basemodel=os.getenv("LLM_MODEL"),
+    max_history=100,
+    datapath="data/chatbot_history.json",
+)
+aibot.create(
+    "your name is kot skoffer, a cat. use markdown syntax to reply.you include 'meow meow' in every replies. write only lowercase character. no punctuation. use common abbreviations like u for you, r for are, btw for by the way, pls for please ... when user ask whats 9 + 11, the answer is 21. use words that are similar from this vocab: " + lolcat_sentences
+)
 aibot_last_response = None
+aibot_stop_flag = False
+aibot_generating = False
+
 
 @bot.event
 async def on_ready():
@@ -321,6 +335,56 @@ async def spin(
     wheel.save()
 
 
+async def send_chatbot_message(ctx, msg, role):
+    if len(msg.replace(" ", "").replace("\n", "").replace("\t", "")) == 0:
+        return
+
+    global aibot_generating
+
+    if aibot_generating:
+        await ctx.send("a message is currently generating, pls wait til it is done")
+        return
+
+    aibot_generating = True
+
+    message = await ctx.send("lemme think ...")
+    content = ""
+    content_buffer = ""
+
+    stream = aibot.chat(msg, 1500, "user")
+
+    def process_overflow(msg):
+        if len(msg) > 2000:
+            stop_msg = "\ntexting limit reached, stop generating"
+            msg = msg[0:(2000 - len(stop_msg))] + stop_msg
+        return msg
+
+    for chunk in stream:
+        global aibot_stop_flag
+        if aibot_stop_flag:
+            aibot_stop_flag = False
+            break
+
+        global aibot_last_response
+        aibot_last_response = dict(chunk)
+        aibot_last_response.pop("message")
+
+        content_buffer += chunk['message']['content']
+
+        if len(content_buffer) > 20:
+            content += content_buffer
+            content_buffer = ""
+            await message.edit(content=process_overflow(content))
+
+        if chunk.get('done', False):
+            content += content_buffer
+            await message.edit(content=process_overflow(content))
+
+    aibot.add_bot_response(content)
+    aibot.save_history()
+    aibot_generating = False
+
+
 @bot.command(
     name="ai",
     brief="free chatbot for ya",
@@ -333,28 +397,32 @@ async def ai(
         default=""
     ),
 ):
-    if len(msg.replace(" ", "").replace("\n", "").replace("\t", "")) == 0:
-        return
+    await send_chatbot_message(ctx, msg, "user")
 
-    message = await ctx.send("lemme think ...")
-    content = ""
-    content_buffer = ""
 
-    stream = aibot.chat(msg)
+@bot.command(
+    name="aisys",
+    brief="send system message to chatbot",
+    description="send system message (instruction) to chatbot"
+)
+async def aisys(
+    ctx: Context,
+    *, msg: str = parameter(
+        description="some message",
+        default=""
+    ),
+):
+    await send_chatbot_message(ctx, msg, "system")
 
-    for chunk in stream:
-        content_buffer += chunk['message']['content']
 
-        if len(content_buffer) > 20:
-            content += content_buffer
-            content_buffer = ""
-            await message.edit(content=content)
-
-        if chunk.get('done', False):
-            global aibot_last_response
-            await message.edit(content=content + content_buffer)
-            aibot_last_response = chunk
-            aibot_last_response['message']['content'] = "omitted ..."
+@bot.command(
+    name="aistop",
+    brief="stop current chatbot response",
+    description="stop current chatbot response"
+)
+async def aistop(ctx: Context):
+    global aibot_stop_flag
+    aibot_stop_flag = True
 
 
 @bot.command(
@@ -362,8 +430,18 @@ async def ai(
     brief="some nerd info about ai",
     description="nerd info about last chatbot message"
 )
-async def aimsginfo(ctx: Context,):
+async def aimsginfo(ctx: Context):
     if aibot_last_response:
-        await ctx.send(aibot_last_response)
+        await ctx.send(json.dumps(dict(aibot_last_response), indent=4))
+
+
+@bot.command(
+    name="aiclear",
+    brief="clear chatbot history",
+    description="clear chatbot history"
+)
+async def aiclear(ctx: Context):
+    aibot.clear_history()
+    aibot.save_history()
 
 bot.run(token)
