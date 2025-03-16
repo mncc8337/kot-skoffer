@@ -84,6 +84,7 @@ class AiCog(commands.GroupCog, group_name="ai"):
     @app_commands.command(name="stop", description="stop current chatbot response")
     async def stop(self, interaction: discord.Interaction):
         self.stop_flag = True
+        interaction.response.send_message("stop signal sent")
 
     @app_commands.command(name="msginfo", description="nerd info about last chatbot message")
     async def msginfo(self, interaction: discord.Interaction):
@@ -94,3 +95,4 @@ class AiCog(commands.GroupCog, group_name="ai"):
     async def clear(self, interaction: discord.Interaction):
         self.aibot.clear_history()
         self.aibot.save_history()
+        interaction.response.send_message("chat history cleared")
