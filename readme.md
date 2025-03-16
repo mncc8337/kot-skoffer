@@ -10,7 +10,6 @@ bad discord bot
 `cp .env.example .env` then edit it
 ### run
 first run `ollama serve` then just do `python3 app.py`. and on any channel:  
-- set bot test channel: `/settings set bottest_channel <CHANNEL_ID>`
 - set default city for weather fetching: `/settings set city <CITY_NAME>`  
 all the data will be saved in `./data`
 > [!Tip]

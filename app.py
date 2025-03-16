@@ -19,12 +19,9 @@ token = os.getenv("TOKEN")
 if not token:
     print("TOKEN not set!")
     exit(1)
-
-
-def allowed_channels(*channel_ids):
-    def predicate(ctx):
-        return ctx.channel.id in channel_ids
-    return commands.check(predicate)
+elif not os.getenv("LLM_MODEL"):
+    print("LLM_MODEL not set!")
+    exit(1)
 
 
 intents = discord.Intents.default()
@@ -32,12 +29,11 @@ intents.messages = True
 intents.message_content = True
 intents.presences = True
 
-bot = commands.Bot(command_prefix="/", intents=intents)
+bot = commands.Bot(command_prefix=".", intents=intents)
 
 bot_data: data_loader.Data = data_loader.Data("data/general.json")
 for key in [
     # properties in general.json and their default value
-    ("bottest_channel", 0),
     ("city", "hue"),
     ("weather_api", "https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,rain,showers,wind_speed_10m,wind_direction_10m&daily=temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,sunrise,sunset,uv_index_max,rain_sum,showers_sum,wind_speed_10m_max,wind_direction_10m_dominant,shortwave_radiation_sum&timezone=Asia%2FBangkok&forecast_days={days}"),
 ]:
@@ -61,12 +57,6 @@ async def on_ready():
     )
 
     print("kot: meow meow")
-
-
-@bot.event
-async def on_command_error(ctx, error):
-    if isinstance(error, commands.CheckFailure):
-        await ctx.send("meow meow, u kant use dis command heere!!")
 
 
 @bot.event
@@ -143,7 +133,6 @@ async def numberfact(
     brief="roll random number",
     description="get some random number in specified range"
 )
-@allowed_channels(bot_data.data["bottest_channel"])
 async def roll(
     ctx: Context,
     lbound: int = parameter(description="lower bound", default=1),
@@ -232,9 +221,8 @@ async def todo(
             todo_list.remove(int(param))
         case "toggle":
             todo_list.toggle(int(param))
-        case _:
-            await ctx.send(todo_list.text())
 
+    await ctx.send(todo_list.text())
     todo_list.save()
 
 
@@ -243,7 +231,6 @@ async def todo(
     brief="get random name",
     description="get random name"
 )
-@allowed_channels(bot_data.data["bottest_channel"])
 async def randomname(
     ctx: Context,
     type: str = parameter(

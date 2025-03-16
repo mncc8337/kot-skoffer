@@ -13,7 +13,8 @@ class TODOList(data_loader.Data):
     def add(self, content):
         self.todo_list.append({
             "content": content,
-            "checked": False
+            "checked": False,
+            "remind": -1,
         })
 
     def remove(self, id):
