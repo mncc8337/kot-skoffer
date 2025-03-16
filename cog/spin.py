@@ -33,6 +33,6 @@ class SpinCog(commands.GroupCog, group_name="spin"):
     async def list(self, interaction: discord.Interaction):
         await self.wheel.list(interaction)
 
-    @app_commands.command(name="user", description="show lucky self.wheel score of all users")
+    @app_commands.command(name="user", description="show lucky wheel score of all users")
     async def user(self, interaction: discord.Interaction):
         await self.wheel.user(interaction)
