@@ -196,7 +196,7 @@ class ImageCog(GroupCog, group_name="image"):
                 # bg
                 draw.rectangle(
                     [(x, y), (x + cwidth, y + cheight)],
-                    fill=tuple(int(x * 0.1) for x in avg_color),
+                    fill=tuple(int(x * bg_influence) for x in avg_color),
                 )
 
                 # fg
