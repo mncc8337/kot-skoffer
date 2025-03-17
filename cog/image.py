@@ -50,8 +50,7 @@ class ImageCog(GroupCog, group_name="image"):
     async def send_image(self, interaction: Interaction, image: Image, name: str):
         image.save("images/" + name + ".ascii.png", format="PNG")
         buffer, fsize = await self.reduce_size(image)
-        print("fifuhdhdgdggdgdgdhfh file size:", fsize/1024/1024)
-        if fsize > 25 * 1024 * 1024:
+        if fsize > 10 * 1024 * 1024:
             await interaction.followup.send("file size too large", ephemeral=True)
             return
         discord_file = discord.File(fp=buffer, filename=name + ".ascii.jpeg")
