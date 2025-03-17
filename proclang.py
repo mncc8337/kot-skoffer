@@ -6,7 +6,7 @@ with open("lol_us.json", "r") as f:
     content = json.load(f)
 
 mod = ""
-mod_length = 230
+mod_length = 512
 while len(mod) < mod_length:
     for key in content.keys():
         if random.randint(0, 100) < 10:

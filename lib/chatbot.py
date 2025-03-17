@@ -65,3 +65,11 @@ class Chatbot:
 
     def clear_history(self):
         self.chat_history.clear()
+
+    def get_info(self):
+        info = ollama.show(self.model)
+        ret = {
+            "name": self.model,
+            "modified_at": str(info.modified_at),
+        }
+        return ret | vars(info.details)

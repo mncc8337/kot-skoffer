@@ -9,7 +9,6 @@ import os
 
 class AiCog(GroupCog, group_name="ai"):
     generating = False
-    last_response = None
     stop_flag = False
 
     def __init__(self, bot):
@@ -59,9 +58,6 @@ class AiCog(GroupCog, group_name="ai"):
                 self.stop_flag = False
                 break
 
-            self.last_response = dict(chunk)
-            self.last_response.pop("message")
-
             content_buffer += chunk['message']['content']
 
             if len(content_buffer) > 20:
@@ -92,10 +88,12 @@ class AiCog(GroupCog, group_name="ai"):
         self.stop_flag = True
         await interaction.response.send_message("stop signal sent")
 
-    @app_commands.command(name="msginfo", description="nerd info about last chatbot message")
+    @app_commands.command(name="info", description="info about chatbot")
     async def msginfo(self, interaction: Interaction):
-        if self.last_response:
-            await interaction.response.send_message(json.dumps(dict(self.last_response), indent=4))
+        await interaction.response.send_message(
+            content="```\n" + json.dumps(self.aibot.get_info(), indent=4) + "\n```",
+            ephemeral=True,
+        )
 
     @app_commands.command(name="clear", description="clear chatbot history")
     async def clear(self, interaction: Interaction):
