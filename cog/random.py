@@ -17,11 +17,7 @@ class RandomCog(GroupCog, group_name="random"):
         name="roll",
         description="get some random number in specified range"
     )
-    @app_commands.describe(
-        lbound="lower bound",
-        hbound="higher bound",
-        times="how many rolls",
-    )
+    @app_commands.describe(lbound="lower bound", hbound="higher bound", times="how many rolls",)
     async def roll(
         self,
         interaction: Interaction,
@@ -44,17 +40,11 @@ class RandomCog(GroupCog, group_name="random"):
             rolls += str(random.randint(lbound, hbound)) + " "
             await interaction.edit_original_response(content=rolls)
 
-    @app_commands.command(
-        name="catname",
-        description="get random cat name"
-    )
+    @app_commands.command(name="catname", description="get random cat name")
     async def catname(self, interaction: Interaction):
         await interaction.response.send_message(await random_name.generate_cat_name())
 
-    @app_commands.command(
-        name="name",
-        description="get random human name"
-    )
+    @app_commands.command(name="name", description="get random human name")
     async def name(self, interaction: Interaction):
         await interaction.response.send_message(await random_name.generate_human_name())
 

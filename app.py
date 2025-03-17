@@ -33,6 +33,7 @@ random_cog = cog.RandomCog(bot)
 todo_cog = cog.TodoCog(bot)
 spin_cog = cog.SpinCog(bot)
 ai_cog = cog.AiCog(bot)
+image_cog = cog.ImageCog(bot)
 
 
 @bot.event
@@ -44,8 +45,11 @@ async def on_ready():
     await bot.add_cog(todo_cog)
     await bot.add_cog(spin_cog)
     await bot.add_cog(ai_cog)
+    await bot.add_cog(image_cog)
 
+    await bot.tree.sync(guild=discord.Object(id=1331241613460115557))
     await bot.tree.sync()
+    print("kot: app commands synced (or not)")
 
     await bot.change_presence(
         activity=discord.Activity(
