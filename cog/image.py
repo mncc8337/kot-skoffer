@@ -24,11 +24,37 @@ class ImageCog(GroupCog, group_name="image"):
     def __init__(self, bot):
         self.bot = bot
 
-    async def send_image(self, interaction: Interaction, image: Image):
-        buffer = io.BytesIO()
-        image.save(buffer, format='PNG')
+    async def reduce_size(self, image: Image.Image, max_file_size=10 * 1024 * 1024):
+        width, height = image.size
+
+        while True:
+            buffer = io.BytesIO()
+            image.save(buffer, format='JPEG', quality=85)
+            size_in_bytes = buffer.tell()
+
+            if size_in_bytes <= max_file_size:
+                buffer.seek(0)
+                return buffer, size_in_bytes
+
+            width = int(width * 0.9)
+            height = int(height * 0.9)
+            image = image.resize((width, height), Image.Resampling.LANCZOS)
+
+            if width < 100 or height < 100:
+                break
+
         buffer.seek(0)
-        discord_file = discord.File(fp=buffer, filename="image.png")
+        return buffer, size_in_bytes
+
+
+    async def send_image(self, interaction: Interaction, image: Image, name: str):
+        image.save("images/" + name + ".ascii.png", format="PNG")
+        buffer, fsize = await self.reduce_size(image)
+        print("fifuhdhdgdggdgdgdhfh file size:", fsize/1024/1024)
+        if fsize > 25 * 1024 * 1024:
+            await interaction.followup.send("file size too large", ephemeral=True)
+            return
+        discord_file = discord.File(fp=buffer, filename=name + ".ascii.jpeg")
         await interaction.followup.send(file=discord_file)
 
     @app_commands.command(name="text", description="get an image with texts")
@@ -85,16 +111,21 @@ class ImageCog(GroupCog, group_name="image"):
         draw = ImageDraw.Draw(image)
         draw.text((0, 0), text, fill=fg, font=font)
 
-        await self.send_image(interaction, image)
+        await self.send_image(interaction, image, text)
 
     @app_commands.command(name="asciify", description="asciify image")
-    @app_commands.describe(size="character size", bg_influence="how much the color of text will affect the bg. ranging from 0.0 to 1.0")
+    @app_commands.describe(
+        size="character size",
+        bg_influence="how much the color of text will affect the bg. ranging from 0.0 to 1.0",
+        no_color_mode="black and white mode. include this and type anything to enable",
+    )
     async def asciify(
         self,
         interaction: Interaction,
         image_attachment: discord.Attachment,
         size: Optional[int],
         bg_influence: Optional[float],
+        no_color_mode: Optional[str],
     ):
         if not image_attachment.content_type.startswith("image/"):
             await interaction.response.send_message(
@@ -109,6 +140,13 @@ class ImageCog(GroupCog, group_name="image"):
             bg_influence = 0.1
         else:
             bg_influence = max(min(bg_influence, 1.0), 0.0)
+
+        no_color = False
+        if no_color_mode:
+            no_color = True
+
+        if no_color:
+            bg_influence = 0
 
         await interaction.response.defer()
 
@@ -153,6 +191,9 @@ class ImageCog(GroupCog, group_name="image"):
                 pallete = PALLETE["visual_density"][visual_density]
                 draw_set = random.choice(pallete)
 
+                if no_color:
+                    avg_color = [255, 255, 255]
+
                 # bg
                 draw.rectangle(
                     [(x, y), (x + cwidth, y + cheight)],
@@ -167,4 +208,4 @@ class ImageCog(GroupCog, group_name="image"):
                     font=font_map[draw_set[1]]
                 )
 
-        await self.send_image(interaction, dst_image)
+        await self.send_image(interaction, dst_image, image_attachment.filename)
