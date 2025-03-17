@@ -29,7 +29,7 @@ class ImageCog(GroupCog, group_name="image"):
         image.save(buffer, format='PNG')
         buffer.seek(0)
         discord_file = discord.File(fp=buffer, filename="image.png")
-        await interaction.response.send_message(file=discord_file)
+        await interaction.followup.send(file=discord_file)
 
     @app_commands.command(name="text", description="get an image with texts")
     @app_commands.describe(
@@ -78,6 +78,8 @@ class ImageCog(GroupCog, group_name="image"):
         else:
             font = ImageFont.truetype("ubuntu-font-family/UbuntuMono-B.ttf", size=size)
 
+        await interaction.response.defer()
+
         width, height = int(font.getlength(text)), size
         image = Image.new('RGB', (width, height), color=bg)
         draw = ImageDraw.Draw(image)
@@ -86,12 +88,13 @@ class ImageCog(GroupCog, group_name="image"):
         await self.send_image(interaction, image)
 
     @app_commands.command(name="asciify", description="asciify image")
-    @app_commands.describe(size="character size")
+    @app_commands.describe(size="character size", bg_influence="how much the color of text will affect the bg. ranging from 0.0 to 1.0")
     async def asciify(
         self,
         interaction: Interaction,
         image_attachment: discord.Attachment,
         size: Optional[int],
+        bg_influence: Optional[float],
     ):
         if not image_attachment.content_type.startswith("image/"):
             await interaction.response.send_message(
@@ -102,6 +105,12 @@ class ImageCog(GroupCog, group_name="image"):
 
         if not size:
             size = 8
+        if not bg_influence:
+            bg_influence = 0.1
+        else:
+            bg_influence = max(min(bg_influence, 1.0), 0.0)
+
+        await interaction.response.defer()
 
         src_image = Image.open(io.BytesIO(await image_attachment.read()))
         pixels = src_image.load()
