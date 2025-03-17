@@ -1,13 +1,15 @@
 import discord
+from discord import Interaction
 from discord import app_commands
-from discord.ext import commands
-from discord.ext.commands import parameter
+from discord.ext.commands import GroupCog
+from typing import Optional
+
 import os
 import random
 import lib.random_name as random_name
 
 
-class RandomCog(commands.GroupCog, group_name="random"):
+class RandomCog(GroupCog, group_name="random"):
     def __init__(self, bot):
         self.bot = bot
 
@@ -15,13 +17,25 @@ class RandomCog(commands.GroupCog, group_name="random"):
         name="roll",
         description="get some random number in specified range"
     )
+    @app_commands.describe(
+        lbound="lower bound",
+        hbound="higher bound",
+        times="how many rolls",
+    )
     async def roll(
         self,
-        interaction: discord.Interaction,
-        lbound: int,
-        hbound: int,
-        times: int
+        interaction: Interaction,
+        lbound: Optional[int],
+        hbound: Optional[int],
+        times: Optional[int],
     ):
+        if not lbound:
+            lbound = 1
+        if not hbound:
+            hbound = 6
+        if not times:
+            times = 1
+
         rolls = ""
         rolls += str(random.randint(lbound, hbound)) + " "
 
@@ -34,18 +48,18 @@ class RandomCog(commands.GroupCog, group_name="random"):
         name="catname",
         description="get random cat name"
     )
-    async def catname(self, interaction: discord.Interaction):
+    async def catname(self, interaction: Interaction):
         await interaction.response.send_message(await random_name.generate_cat_name())
 
     @app_commands.command(
         name="name",
         description="get random human name"
     )
-    async def name(self, interaction: discord.Interaction):
+    async def name(self, interaction: Interaction):
         await interaction.response.send_message(await random_name.generate_human_name())
 
     @app_commands.command(name="image", description="get random image")
-    async def image(self, interaction: discord.Interaction):
+    async def image(self, interaction: Interaction):
         pwd = "./images"
         item: str = ""
 

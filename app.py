@@ -1,6 +1,7 @@
 import discord
-from discord.ext import commands
 from discord import Interaction
+from discord import app_commands
+from typing import Optional
 
 from dotenv import load_dotenv
 import os
@@ -24,7 +25,7 @@ intents.messages = True
 intents.message_content = True
 intents.presences = True
 
-bot = commands.Bot(command_prefix=".", intents=intents)
+bot = discord.ext.commands.Bot(command_prefix=".", intents=intents)
 bot.remove_command("help")
 
 settings_cog = cog.SettingsCog(bot)
@@ -59,9 +60,6 @@ async def on_message(message):
     if message.author == bot.user:
         return
 
-    if "ping" in message.content.lower():
-        await message.channel.send("pong")
-
     if "kot" in message.content.lower():
         emoji = discord.utils.get(message.guild.emojis, name="car")
         await message.channel.send(str(emoji))
@@ -74,6 +72,9 @@ async def on_message(message):
 
 
 @bot.tree.command(name="numberfact", description="see random number fact")
+@app_commands.describe(
+    number="an integer"
+)
 async def numberfact(interaction: Interaction, number: int):
     url = f"http://numbersapi.com/{number}"
     response = requests.get(url)
@@ -83,28 +84,34 @@ async def numberfact(interaction: Interaction, number: int):
 
 
 @bot.tree.command(name="weather", description="get weather data from anywhere")
-async def weather(interaction: Interaction, city_name: str, days: int,):
+@app_commands.describe(
+    location="some location",
+    days="number of days to forecast",
+)
+async def weather(interaction: Interaction, location: Optional[str], days: Optional[int]):
     lat: float = 0
     lon: float = 0
     message: str = ""
 
-    if city_name == "_":
-        city_name = settings_cog.bot_data.data["city"]
+    if not location:
+        location = settings_cog.bot_data.data["city"]
+    if not days:
+        days = 0
 
-    # get coordinate using city name
-    url = f"https://nominatim.openstreetmap.org/search?q={city_name}&format=json&limit=1"
+    # get coordinate using location name
+    url = f"https://nominatim.openstreetmap.org/search?q={location}&format=json&limit=1"
     response = requests.get(url, headers={"User-Agent": "kot-skoffer"})
     if response.status_code == 200:
         data = response.json()
         if data:
             lat = data[0]["lat"]
             lon = data[0]["lon"]
-            city_name = data[0]["display_name"]
+            location = data[0]["display_name"]
         else:
-            await interaction.response.send_message(f"no such city {city_name}")
+            await interaction.response.send_message(f"no such place: {location}")
             return
     else:
-        await interaction.response.send_message("cannot request city coordinate")
+        await interaction.response.send_message("cannot request place coordinate")
         return
 
     # get weather info
@@ -113,9 +120,9 @@ async def weather(interaction: Interaction, city_name: str, days: int,):
 
     if response.status_code == 200:
         data = response.json()
-        message += f"weather stat of {city_name}:\n"
+        message += f"weather stat of {location}:\n"
         message += f"```# current\n{json.dumps(data["current"], indent=4)}```"
-        await interaction.response.send_message(message)
+        await interaction.response.send_message(content=message)
 
         if days > 0:
             for day in range(days):
@@ -125,7 +132,7 @@ async def weather(interaction: Interaction, city_name: str, days: int,):
                 for key in data["daily"].keys():
                     message += f"    \"{key}\": {data["daily"][key][day]},\n"
                 message += "}```"
-                await interaction.response.send_message(message)
+                await interaction.followup.send(content=message, wait=True)
 
 
 bot.run(token)

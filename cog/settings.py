@@ -1,10 +1,10 @@
-import discord
+from discord import Interaction
 from discord import app_commands
-from discord.ext import commands
+from discord.ext.commands import GroupCog
 import lib.data_loader as data_loader
 
 
-class SettingsCog(commands.GroupCog, group_name="settings"):
+class SettingsCog(GroupCog, group_name="settings"):
     def __init__(self, bot):
         self.bot = bot
 
@@ -17,12 +17,12 @@ class SettingsCog(commands.GroupCog, group_name="settings"):
             if key[0] not in self.bot_data.data.keys():
                 self.bot_data.data.setdefault(key[0], key[1])
 
-    @app_commands.command(name="list", description="show all settings. use settingsset and settingsget to write/read")
-    async def listcmd(self, interaction: discord.Interaction):
+    @app_commands.command(name="list", description="show all settings")
+    async def listcmd(self, interaction: Interaction):
         await interaction.response.send_message(" ".join(self.bot_data.data.keys()))
 
     @app_commands.command(name="set", description="set settings")
-    async def setcmd(self, interaction: discord.Interaction, key: str, value: str,):
+    async def setcmd(self, interaction: Interaction, key: str, value: str,):
         if key not in self.bot_data.data.keys():
             await interaction.response.send_message("no such key: " + key)
             return
@@ -32,7 +32,7 @@ class SettingsCog(commands.GroupCog, group_name="settings"):
         self.bot_data.save()
 
     @app_commands.command(name="get", description="get settings value")
-    async def getcmd(self, interaction: discord.Interaction, key: str,):
+    async def getcmd(self, interaction: Interaction, key: str,):
         if key not in self.bot_data.data.keys():
             await interaction.response.send_message("no such key: " + key)
             return

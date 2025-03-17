@@ -1,12 +1,13 @@
-import discord
 from discord import app_commands
-from discord.ext import commands
+from discord import Interaction
+from discord.ext.commands import GroupCog
+
 import lib.chatbot as chatbot
 import json
 import os
 
 
-class AiCog(commands.GroupCog, group_name="ai"):
+class AiCog(GroupCog, group_name="ai"):
     generating = False
     last_response = None
     stop_flag = False
@@ -33,7 +34,10 @@ class AiCog(commands.GroupCog, group_name="ai"):
             return
 
         if self.generating:
-            await interaction.response.send_message("a message is currently generating, pls wait til it is done")
+            await interaction.response.send_message(
+                content="a message is currently generating, pls wait til it is done",
+                ephemeral=True,
+            )
             return
 
         self.generating = True
@@ -74,25 +78,27 @@ class AiCog(commands.GroupCog, group_name="ai"):
         self.generating = False
 
     @app_commands.command(name="chat", description="deekseep or something else that you can chat with")
-    async def chat(self, interaction: discord.Interaction, *, msg: str,):
+    @app_commands.describe(msg="message")
+    async def chat(self, interaction: Interaction, *, msg: str):
         await self.send_chatbot_message(interaction, msg, "user")
 
     @app_commands.command(name="sys", description="send system message (instruction) to chatbot")
-    async def sys(self, interaction: discord.Interaction, *, msg: str):
+    @app_commands.describe(msg="message")
+    async def sys(self, interaction: Interaction, *, msg: str):
         await self.send_chatbot_message(interaction, msg, "system")
 
     @app_commands.command(name="stop", description="stop current chatbot response")
-    async def stop(self, interaction: discord.Interaction):
+    async def stop(self, interaction: Interaction):
         self.stop_flag = True
         interaction.response.send_message("stop signal sent")
 
     @app_commands.command(name="msginfo", description="nerd info about last chatbot message")
-    async def msginfo(self, interaction: discord.Interaction):
+    async def msginfo(self, interaction: Interaction):
         if self.last_response:
             await interaction.response.send_message(json.dumps(dict(self.last_response), indent=4))
 
     @app_commands.command(name="clear", description="clear chatbot history")
-    async def clear(self, interaction: discord.Interaction):
+    async def clear(self, interaction: Interaction):
         self.aibot.clear_history()
         self.aibot.save_history()
         interaction.response.send_message("chat history cleared")
