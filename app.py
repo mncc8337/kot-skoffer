@@ -47,7 +47,6 @@ async def on_ready():
     await bot.add_cog(ai_cog)
     await bot.add_cog(image_cog)
 
-    await bot.tree.sync(guild=discord.Object(id=1331241613460115557))
     await bot.tree.sync()
     print("kot: app commands synced (or not)")
 

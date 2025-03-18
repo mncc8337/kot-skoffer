@@ -5,7 +5,7 @@ bad discord bot
 - local AI chat bot 🔥
 ## running
 ### install stuffs
-`pip install discord.py python-dotenv requests pillow ollama`
+`pip install discord.py python-dotenv requests numpy pillow ollama`
 > if it complain about `audioop` then `pip install audioop-lts`  
 > this bot use ollama for llm stuff so make sure to install it and set a model in .env
 ### env

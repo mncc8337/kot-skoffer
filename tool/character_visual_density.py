@@ -24,7 +24,6 @@ for font, style in fonts:
 
         char_fill_levels.append((char, fill_count, style))
 
-char_fill_levels.sort(key=lambda x: x[1])
 max_fill_level = max(char_fill_levels, key=lambda x: x[1])[1]
 count_list = [[] for i in range(0, max_fill_level + 1)]
 
