@@ -42,12 +42,12 @@ class ImageCog(GroupCog, group_name="image"):
 
 
     async def send_image(self, interaction: Interaction, image: Image, name: str):
-        image.save("images/" + name + ".ascii.png", format="PNG")
+        image.save("images/" + name + ".png", format="PNG")
         buffer, fsize = await self.reduce_size(image)
         if fsize > 10 * 1024 * 1024:
             await interaction.followup.send("file size too large", ephemeral=True)
             return
-        discord_file = discord.File(fp=buffer, filename=name + ".ascii.jpeg")
+        discord_file = discord.File(fp=buffer, filename=name + "..jpeg")
         await interaction.followup.send(file=discord_file)
 
     @app_commands.command(name="text", description="get an image with texts")
@@ -141,4 +141,8 @@ class ImageCog(GroupCog, group_name="image"):
             bg_influence,
             no_color
         )
-        await self.send_image(interaction, res_image, image_attachment.filename)
+        await self.send_image(
+            interaction,
+            res_image,
+            image_attachment.filename + f".{character_size}-{bg_influence}"
+        )
