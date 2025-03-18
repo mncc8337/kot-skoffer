@@ -1,6 +1,5 @@
 import json
 import random
-import numpy
 from PIL import Image, ImageDraw, ImageFont
 
 
@@ -28,7 +27,7 @@ def text(text: str, size: int, bg: str, fg: str, bold: bool):
 
 
 def asciify(src_image: Image, character_size: int, bg_influence: float, no_color: bool):
-    pixels = numpy.array(src_image.load())
+    pixels = src_image.load()
 
     font_map = {
         "r": ImageFont.truetype("ubuntu-font-family/UbuntuMono-R.ttf", size=character_size),
@@ -46,24 +45,22 @@ def asciify(src_image: Image, character_size: int, bg_influence: float, no_color
     dst_image = Image.new('RGB', (dst_width * cwidth, dst_height * cheight), color='black')
     draw = ImageDraw.Draw(dst_image)
 
-    x, y = 0, 0
     for cx in range(0, dst_width):
-        x += cwidth
         for cy in range(0, dst_height):
-            y += cheight
+            x = cx * cwidth
+            y = cy * cheight
 
-            block = pixels[y:y + cheight, x:x + cwidth]
-            avg_color = numpy.mean(block, axis=0)
-            # for i in range(x, x + cwidth):
-            #     for j in range(y, y + cheight):
-            #         if i < src_image.size[0] and j < src_image.size[1]:
-            #             color = pixels[i, j]
-            #             for n in range(0, 3):
-            #                 avg_color[n] += color[n]
-            # for n in range(0, 3):
-            #     avg_color[n] /= cwidth * cheight
+            avg_color = [0, 0, 0]
+            for i in range(x, x + cwidth):
+                for j in range(y, y + cheight):
+                    if i < src_image.size[0] and j < src_image.size[1]:
+                        color = pixels[i, j]
+                        for n in range(0, 3):
+                            avg_color[n] += color[n]
 
-            rate = numpy.mean(avg_color) / 255 * PALLETE_COUNT
+            for n in range(0, 3):
+                avg_color[n] /= cwidth * cheight
+            rate = (avg_color[0] + avg_color[1] + avg_color[2]) / 3 / 255 * PALLETE_COUNT
 
             visual_density = min(int(rate + 0.5), PALLETE_COUNT-1)
 
