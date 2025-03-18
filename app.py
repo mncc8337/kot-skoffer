@@ -48,7 +48,7 @@ async def on_ready():
     await bot.add_cog(image_cog)
 
     await bot.tree.sync()
-    print("kot: app commands synced (or not)")
+    print("kot: app commands synced")
 
     await bot.change_presence(
         activity=discord.Activity(
@@ -88,18 +88,16 @@ async def numberfact(interaction: Interaction, number: int):
 
 @bot.tree.command(name="weather", description="get weather data from anywhere")
 @app_commands.describe(
-    location="some location",
-    days="number of days to forecast",
+    location="some location, default: see bot settings",
+    days="number of days to forecast, default: 0",
 )
-async def weather(interaction: Interaction, location: Optional[str], days: Optional[int]):
+async def weather(interaction: Interaction, location: Optional[str], days: Optional[int] = 0):
     lat: float = 0
     lon: float = 0
     message: str = ""
 
     if not location:
         location = settings_cog.bot_data.data["city"]
-    if not days:
-        days = 0
 
     # get coordinate using location name
     url = f"https://nominatim.openstreetmap.org/search?q={location}&format=json&limit=1"

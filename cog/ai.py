@@ -74,12 +74,10 @@ class AiCog(GroupCog, group_name="ai"):
         self.generating = False
 
     @app_commands.command(name="chat", description="deekseep or something else that you can chat with")
-    @app_commands.describe(msg="message")
     async def chat(self, interaction: Interaction, *, msg: str):
         await self.send_chatbot_message(interaction, msg, "user")
 
     @app_commands.command(name="sys", description="send system message (instruction) to chatbot")
-    @app_commands.describe(msg="message")
     async def sys(self, interaction: Interaction, *, msg: str):
         await self.send_chatbot_message(interaction, msg, "system")
 

@@ -1,5 +1,6 @@
 import json
 import random
+import io
 from PIL import Image, ImageDraw, ImageFont
 
 
@@ -11,6 +12,29 @@ with open("visual_density.json", "r") as f:
 PALLETE_COUNT = len(PALLETE["visual_density"])
 
 
+def reduce_size(image: Image, max_file_size=10 * 1024 * 1024):
+    width, height = image.size
+
+    while True:
+        buffer = io.BytesIO()
+        image.save(buffer, format='PNG')
+        size_in_bytes = buffer.tell()
+
+        if size_in_bytes <= max_file_size:
+            buffer.seek(0)
+            return buffer, size_in_bytes
+
+        width = int(width * 0.9)
+        height = int(height * 0.9)
+        image = image.resize((width, height), Image.Resampling.LANCZOS)
+
+        if width < 100 or height < 100:
+            break
+
+    buffer.seek(0)
+    return buffer, size_in_bytes
+
+
 def text(text: str, size: int, bg: str, fg: str, bold: bool):
     font = None
     if not bold:
@@ -19,14 +43,14 @@ def text(text: str, size: int, bg: str, fg: str, bold: bool):
         font = ImageFont.truetype("ubuntu-font-family/UbuntuMono-B.ttf", size=size)
 
     width, height = int(font.getlength(text)), size
-    image = Image.new('RGB', (width, height), color=bg)
+    image = Image.new('RGBA', (width, height), color=bg)
     draw = ImageDraw.Draw(image)
     draw.text((0, 0), text, fill=fg, font=font)
 
     return image
 
 
-def asciify(src_image: Image, character_size: int, bg_influence: float, no_color: bool):
+def asciify(src_image: Image, character_size: int, bg_influence: float, no_color: bool, chars_only: bool):
     pixels = src_image.load()
 
     font_map = {
@@ -42,7 +66,12 @@ def asciify(src_image: Image, character_size: int, bg_influence: float, no_color
     dst_width = int(dst_width / cwidth)
     dst_height = int(dst_height / cheight)
 
-    dst_image = Image.new('RGB', (dst_width * cwidth, dst_height * cheight), color='black')
+    dst_image: Image = None
+    if not chars_only:
+        dst_image = Image.new('RGB', (dst_width * cwidth, dst_height * cheight), color='black')
+    else:
+        dst_image = Image.new('RGBA', (dst_width * cwidth, dst_height * cheight), color='#00000000')
+
     draw = ImageDraw.Draw(dst_image)
 
     for cx in range(0, dst_width):
@@ -70,11 +99,12 @@ def asciify(src_image: Image, character_size: int, bg_influence: float, no_color
             if no_color:
                 avg_color = [255, 255, 255]
 
-            # bg
-            draw.rectangle(
-                [(x, y), (x + cwidth, y + cheight)],
-                fill=tuple(int(x * bg_influence) for x in avg_color),
-            )
+            if not chars_only:
+                # bg
+                draw.rectangle(
+                    [(x, y), (x + cwidth, y + cheight)],
+                    fill=tuple(int(x * bg_influence) for x in avg_color),
+                )
 
             # fg
             draw.text(

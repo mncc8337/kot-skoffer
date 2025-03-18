@@ -17,21 +17,14 @@ class RandomCog(GroupCog, group_name="random"):
         name="roll",
         description="get some random number in specified range"
     )
-    @app_commands.describe(lbound="lower bound", hbound="higher bound", times="how many rolls",)
+    @app_commands.describe(lbound="lower bound. default: 1", hbound="higher bound. default: 6", times="how many rolls. default: 1",)
     async def roll(
         self,
         interaction: Interaction,
-        lbound: Optional[int],
-        hbound: Optional[int],
-        times: Optional[int],
+        lbound: Optional[int] = 1,
+        hbound: Optional[int] = 6,
+        times: Optional[int] = 1,
     ):
-        if not lbound:
-            lbound = 1
-        if not hbound:
-            hbound = 6
-        if not times:
-            times = 1
-
         rolls = ""
         rolls += str(random.randint(lbound, hbound)) + " "
 

@@ -9,87 +9,81 @@ from PIL import Image
 
 import re
 import io
+import requests
 
 
-HEX_REGEX = r'^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$'
+HEX_REGEX = r'^#([A-Fa-f0-9]{8}|[A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$'
 
 
 class ImageCog(GroupCog, group_name="image"):
     def __init__(self, bot):
         self.bot = bot
 
-    async def reduce_size(self, image: Image.Image, max_file_size=10 * 1024 * 1024):
-        width, height = image.size
+    def post_to_0x0st(self, file_path):
+        response = None
+        with open(file_path, "rb") as file:
+            response = requests.post(
+                "https://0x0.st",
+                files={"file": file},
+                headers={"User-Agent": "kot-skoffer"}
+            )
 
-        while True:
-            buffer = io.BytesIO()
-            image.save(buffer, format='JPEG', quality=85)
-            size_in_bytes = buffer.tell()
+        if response.status_code == 200:
+            return response.text.strip()
+        else:
+            print(f"kot: failed to post image {file_path}. {response.text}")
+            return None
 
-            if size_in_bytes <= max_file_size:
-                buffer.seek(0)
-                return buffer, size_in_bytes
+    async def send_high_quality_image(self, interaction: Interaction, image: Image, name: str):
+        image.save("images/image_process/" + name + ".png", format="PNG")
 
-            width = int(width * 0.9)
-            height = int(height * 0.9)
-            image = image.resize((width, height), Image.Resampling.LANCZOS)
+        buffer, _ = image_process.reduce_size(image)
+        discord_file = discord.File(fp=buffer, filename=name + ".png")
 
-            if width < 100 or height < 100:
-                break
-
-        buffer.seek(0)
-        return buffer, size_in_bytes
-
+        image_url = self.post_to_0x0st("images/image_process/" + name + ".png")
+        if image_url:
+            msg = f"""done processing. sent with full quality via 0x0.st and low quality via attachment.
+[full image at 0x0.st]({image_url}).
+**NOTE:** the high quality one will be deleted after 30 days"""
+            await interaction.followup.send(msg, file=discord_file)
+        else:
+            await interaction.followup.send("done processing. unable to send the high quality one, sent with low quality via attachment instead.", file=discord_file)
 
     async def send_image(self, interaction: Interaction, image: Image, name: str):
-        image.save("images/" + name + ".png", format="PNG")
-        buffer, fsize = await self.reduce_size(image)
-        if fsize > 10 * 1024 * 1024:
-            await interaction.followup.send("file size too large", ephemeral=True)
-            return
-        discord_file = discord.File(fp=buffer, filename=name + "..jpeg")
+        buffer, _ = image_process.reduce_size(image)
+        discord_file = discord.File(fp=buffer, filename=name + ".png")
         await interaction.followup.send(file=discord_file)
 
     @app_commands.command(name="text", description="get an image with texts")
     @app_commands.describe(
         text="the content of the image",
-        size="font size",
-        bg="background color, hex value e.g #aabbcc",
-        fg="foreground color, hex value e.g #aabbcc",
-        use_bold="include this arg and type anything to use bold font",
+        size="font size. default: 32",
+        bg="background color, hex value e.g #aabbccdd or #aabbcc or #abc. default: #ffffff",
+        fg="foreground color, hex value e.g #aabbccdd or #aabbcc or #abc. default: #000000",
+        bold="use bold font. default: False",
     )
     async def text(
         self,
         interaction: Interaction,
         text: str,
-        size: Optional[int],
-        bg: Optional[str],
-        fg: Optional[str],
-        use_bold: Optional[str]
+        size: Optional[int] = 32,
+        bg: Optional[str] = "#ffffff",
+        fg: Optional[str] = "#000000",
+        bold: Optional[bool] = False
     ):
-        if not size:
-            size = 32
-
-        if not bg:
-            bg = "#ffffff"
-        elif not re.match(HEX_REGEX, bg):
+        if not re.match(HEX_REGEX, bg):
             await interaction.response.send_message(
                 content="bg value is invalid",
                 ephemeral=True,
             )
             return
-        if not fg:
-            fg = "#000000"
-        elif not re.match(HEX_REGEX, fg):
+
+        if not re.match(HEX_REGEX, fg):
             await interaction.response.send_message(
                 content="fg value is invalid",
                 ephemeral=True,
             )
             return
-
-        bold = False
-        if use_bold:
-            bold = True
 
         await interaction.response.defer()
 
@@ -101,16 +95,19 @@ class ImageCog(GroupCog, group_name="image"):
 
     @app_commands.command(name="asciify", description="asciify image")
     @app_commands.describe(
-        bg_influence="how much the color of text will affect the bg. ranging from 0.0 to 1.0",
-        no_color_mode="black and white mode. include this and type anything to enable",
+        character_size="size of characters. default: 8",
+        bg_influence="how much the color of text will affect the bg. ranging from 0.0 to 1.0. default: 0.3",
+        no_color="black and white mode. default: False",
+        chars_only="only draw characters. default: False",
     )
     async def asciify(
         self,
         interaction: Interaction,
         image_attachment: discord.Attachment,
-        character_size: Optional[int],
-        bg_influence: Optional[float],
-        no_color_mode: Optional[str],
+        character_size: Optional[int] = 8,
+        bg_influence: Optional[float] = 0.3,
+        no_color: Optional[bool] = False,
+        chars_only: Optional[bool] = False,
     ):
         if not image_attachment.content_type.startswith("image/"):
             await interaction.response.send_message(
@@ -119,16 +116,7 @@ class ImageCog(GroupCog, group_name="image"):
             )
             return
 
-        if not character_size:
-            character_size = 8
-        if not bg_influence:
-            bg_influence = 0.1
-        else:
-            bg_influence = max(min(bg_influence, 1.0), 0.0)
-
-        no_color = False
-        if no_color_mode:
-            no_color = True
+        bg_influence = max(min(bg_influence, 1.0), 0.0)
 
         if no_color:
             bg_influence = 0
@@ -139,9 +127,11 @@ class ImageCog(GroupCog, group_name="image"):
             Image.open(io.BytesIO(await image_attachment.read())),
             character_size,
             bg_influence,
-            no_color
+            no_color,
+            chars_only,
         )
-        await self.send_image(
+
+        await self.send_high_quality_image(
             interaction,
             res_image,
             image_attachment.filename + f".{character_size}-{bg_influence}"
