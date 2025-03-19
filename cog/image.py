@@ -54,6 +54,264 @@ class ImageCog(GroupCog, group_name="image"):
         discord_file = discord.File(fp=buffer, filename=name + ".png")
         await interaction.followup.send(file=discord_file)
 
+    @app_commands.command(name="paste", description="paste foreground onto background")
+    @app_commands.describe(
+        position_x="x position of foreground image. default: 0",
+        position_y="y position of foreground image. default: 0",
+    )
+    async def paste(
+        self,
+        interaction: Interaction,
+        background_attachment: discord.Attachment,
+        foreground_attachment: discord.Attachment,
+        position_x: Optional[int] = 0,
+        position_y: Optional[int] = 0,
+    ):
+        if not background_attachment.content_type.startswith("image/"):
+            await interaction.response.send_message(
+                content="bg is not an image",
+                ephemeral=True,
+            )
+            return
+
+        if not foreground_attachment.content_type.startswith("image/"):
+            await interaction.response.send_message(
+                content="fg is not an image",
+                ephemeral=True,
+            )
+            return
+
+        await interaction.response.defer()
+        background = Image.open(io.BytesIO(await background_attachment.read()))
+        foreground = Image.open(io.BytesIO(await foreground_attachment.read()))
+        image_process.paste(background, foreground, (position_x, position_y))
+
+        await self.send_high_quality_image(
+            interaction,
+            background,
+            background_attachment.filename
+        )
+
+    @app_commands.command(name="composite", description="composite 2 images")
+    async def composite(
+        self,
+        interaction: Interaction,
+        img1_attachment: discord.Attachment,
+        img2_attachment: discord.Attachment,
+        mask_img_attachment: discord.Attachment,
+    ):
+        if not img1_attachment.content_type.startswith("image/"):
+            await interaction.response.send_message(
+                content="img1 is not an image",
+                ephemeral=True,
+            )
+            return
+
+        if not img2_attachment.content_type.startswith("image/"):
+            await interaction.response.send_message(
+                content="img2 is not an image",
+                ephemeral=True,
+            )
+            return
+
+        if not mask_img_attachment.content_type.startswith("image/"):
+            await interaction.response.send_message(
+                content="mask_img is not an image",
+                ephemeral=True,
+            )
+            return
+
+        await interaction.response.defer()
+        img1 = Image.open(io.BytesIO(await img1_attachment.read()))
+        img2 = Image.open(io.BytesIO(await img2_attachment.read()))
+        mask = Image.open(io.BytesIO(await mask_img_attachment.read()))
+
+        await self.send_high_quality_image(
+            interaction,
+            image_process.composite(img1, img2, mask),
+            img1_attachment.filename + " and " + img2_attachment.filename + " composite"
+        )
+
+    @app_commands.command(name="blend", description="blend 2 images")
+    async def blend(
+        self,
+        interaction: Interaction,
+        img1_attachment: discord.Attachment,
+        img2_attachment: discord.Attachment,
+        alpha: float,
+    ):
+        if not img1_attachment.content_type.startswith("image/"):
+            await interaction.response.send_message(
+                content="img1 is not an image",
+                ephemeral=True,
+            )
+            return
+
+        if not img2_attachment.content_type.startswith("image/"):
+            await interaction.response.send_message(
+                content="img2 is not an image",
+                ephemeral=True,
+            )
+            return
+
+        alpha = min(max(alpha, 0.0), 1.0)
+
+        await interaction.response.defer()
+        img1 = Image.open(io.BytesIO(await img1_attachment.read()))
+        img2 = Image.open(io.BytesIO(await img2_attachment.read()))
+
+        await self.send_high_quality_image(
+            interaction,
+            image_process.blend(img1, img2, alpha),
+            img1_attachment.filename + " and " + img2_attachment.filename + " blend"
+        )
+
+    @app_commands.command(name="invert_transparency", description="self explanatory")
+    async def invert_transparency(
+        self,
+        interaction: Interaction,
+        image_attachment: discord.Attachment,
+    ):
+        if not image_attachment.content_type.startswith("image/"):
+            await interaction.response.send_message(
+                content="not an image",
+                ephemeral=True,
+            )
+            return
+
+        await interaction.response.defer()
+        image = Image.open(io.BytesIO(await image_attachment.read()))
+
+        await self.send_high_quality_image(
+            interaction,
+            image_process.invert_transparency(image),
+            image_attachment.filename
+        )
+
+    @app_commands.command(name="rotate", description="rotate an image counter-clockwise")
+    async def rotate(
+        self,
+        interaction: Interaction,
+        image_attachment: discord.Attachment,
+        theta: float,
+    ):
+        if not image_attachment.content_type.startswith("image/"):
+            await interaction.response.send_message(
+                content="not an image",
+                ephemeral=True,
+            )
+            return
+
+        await interaction.response.defer()
+        image = Image.open(io.BytesIO(await image_attachment.read()))
+
+        await self.send_high_quality_image(
+            interaction,
+            image_process.rotate(image, theta),
+            image_attachment.filename
+        )
+
+    @app_commands.command(name="apply_opacity", description="lower the alpha component of the image by a factor")
+    @app_commands.describe(alpha="ranging from 0.0 to 1.0")
+    async def apply_opacity(
+        self,
+        interaction: Interaction,
+        image_attachment: discord.Attachment,
+        alpha: float,
+    ):
+        if not image_attachment.content_type.startswith("image/"):
+            await interaction.response.send_message(
+                content="not an image",
+                ephemeral=True,
+            )
+            return
+
+        await interaction.response.defer()
+        image = Image.open(io.BytesIO(await image_attachment.read()))
+
+        await self.send_high_quality_image(
+            interaction,
+            image_process.opacity(image, alpha),
+            image_attachment.filename
+        )
+
+    @app_commands.command(name="getchannel", description="get a specific channel from an image")
+    @app_commands.choices(channel=[
+        app_commands.Choice(name="red", value="R"),
+        app_commands.Choice(name="green", value="G"),
+        app_commands.Choice(name="blue", value="B"),
+    ])
+    async def getchannel(
+        self,
+        interaction: Interaction,
+        image_attachment: discord.Attachment,
+        channel: str,
+    ):
+        if not image_attachment.content_type.startswith("image/"):
+            await interaction.response.send_message(
+                content="not an image",
+                ephemeral=True,
+            )
+            return
+
+        await interaction.response.defer()
+        image = Image.open(io.BytesIO(await image_attachment.read()))
+
+        await self.send_high_quality_image(
+            interaction,
+            image_process.get_channel(image, channel[0]),
+            image_attachment.filename
+        )
+
+    @app_commands.command(name="getsize", description="self explanatory")
+    async def getsize(
+        self,
+        interaction: Interaction,
+        image_attachment: discord.Attachment,
+    ):
+        if not image_attachment.content_type.startswith("image/"):
+            await interaction.response.send_message(
+                content="not an image",
+                ephemeral=True,
+            )
+            return
+
+        await interaction.response.defer()
+
+        image = Image.open(io.BytesIO(await image_attachment.read()))
+        discord_file = discord.File(
+            fp=io.BytesIO(await image_attachment.read()),
+            filename=image_attachment.filename
+        )
+
+        await interaction.followup.send(f"{image.size[0]}x{image.size[1]}", file=discord_file)
+
+    @app_commands.command(name="resize", description="self explanatory")
+    async def resize(
+        self,
+        interaction: Interaction,
+        image_attachment: discord.Attachment,
+        width: int,
+        height: int,
+    ):
+        if not image_attachment.content_type.startswith("image/"):
+            await interaction.response.send_message(
+                content="not an image",
+                ephemeral=True,
+            )
+            return
+
+        await interaction.response.defer()
+
+        image = Image.open(io.BytesIO(await image_attachment.read()))
+        image = image_process.resize(image, (width, height))
+
+        await self.send_high_quality_image(
+            interaction,
+            image,
+            image_attachment.filename
+        )
+
     @app_commands.command(name="text", description="get an image with texts")
     @app_commands.describe(
         text="the content of the image",
@@ -99,6 +357,7 @@ class ImageCog(GroupCog, group_name="image"):
         bg_influence="how much the color of text will affect the bg. ranging from 0.0 to 1.0. default: 0.3",
         no_color="black and white mode. default: False",
         chars_only="only draw characters. default: False",
+        invert_brightness="use dark characters for bright area",
     )
     async def asciify(
         self,
@@ -108,6 +367,7 @@ class ImageCog(GroupCog, group_name="image"):
         bg_influence: Optional[float] = 0.3,
         no_color: Optional[bool] = False,
         chars_only: Optional[bool] = False,
+        invert_brightness: Optional[bool] = False,
     ):
         if not image_attachment.content_type.startswith("image/"):
             await interaction.response.send_message(
@@ -129,6 +389,7 @@ class ImageCog(GroupCog, group_name="image"):
             bg_influence,
             no_color,
             chars_only,
+            invert_brightness,
         )
 
         await self.send_high_quality_image(

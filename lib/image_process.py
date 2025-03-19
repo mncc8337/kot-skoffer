@@ -1,7 +1,7 @@
 import json
 import random
 import io
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 
 PALLETE: dict = None
@@ -35,6 +35,62 @@ def reduce_size(image: Image, max_file_size=10 * 1024 * 1024):
     return buffer, size_in_bytes
 
 
+def paste(background: Image, foreground: Image, position: tuple):
+    background.paste(foreground, position, foreground)
+
+
+def composite(img1: Image, img2: Image, mask: Image):
+    return Image.composite(img1, img2, mask.convert("L"))
+
+
+def blend(img1: Image, img2: Image, alpha: float):
+    return Image.blend(img1, img2, alpha)
+
+
+def invert_transparency(image: Image):
+    r, g, b, a = image.convert("RGBA").split()
+    a = ImageOps.invert(a)
+    return Image.merge("RGBA", (r, g, b, a))
+
+
+def rotate(image: Image, theta: float):
+    return image.convert("RGBA").rotate(theta, expand=True, fillcolor=(0, 0, 0, 0))
+
+
+def opacity(image: Image, alpha: float):
+    r, g, b, a = image.convert("RGBA").split()
+
+    a = a.point(lambda p: p * alpha)
+
+    return Image.merge("RGBA", (r, g, b, a))
+
+
+def get_channel(image: Image, channel: str):
+    channel_map = {}
+
+    splitted = image.convert("RGB").split()
+    channel_map["R"] = splitted[0]
+    channel_map["G"] = splitted[1]
+    channel_map["B"] = splitted[2]
+
+    new_channel_map = {
+        "R": Image.new("L", image.size, 0),
+        "G": Image.new("L", image.size, 0),
+        "B": Image.new("L", image.size, 0),
+    }
+    new_channel_map[channel] = channel_map[channel]
+
+    return Image.merge("RGB", (
+        new_channel_map["R"],
+        new_channel_map["G"],
+        new_channel_map["B"],
+    ))
+
+
+def resize(image: Image, dim: tuple):
+    return image.resize(dim, Image.Resampling.LANCZOS)
+
+
 def text(text: str, size: int, bg: str, fg: str, bold: bool):
     font = None
     if not bold:
@@ -50,7 +106,7 @@ def text(text: str, size: int, bg: str, fg: str, bold: bool):
     return image
 
 
-def asciify(src_image: Image, character_size: int, bg_influence: float, no_color: bool, chars_only: bool):
+def asciify(src_image: Image, character_size: int, bg_influence: float, no_color: bool, chars_only: bool, invert_brightness: bool):
     pixels = src_image.load()
 
     font_map = {
@@ -92,6 +148,8 @@ def asciify(src_image: Image, character_size: int, bg_influence: float, no_color
             rate = (avg_color[0] + avg_color[1] + avg_color[2]) / 3 / 255 * PALLETE_COUNT
 
             visual_density = min(int(rate + 0.5), PALLETE_COUNT-1)
+            if invert_brightness:
+                visual_density = PALLETE_COUNT - 1 - visual_density
 
             pallete = PALLETE["visual_density"][visual_density]
             draw_set = random.choice(pallete)

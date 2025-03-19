@@ -1,8 +1,9 @@
 # Kot Skoffer
 bad discord bot
 ## feature
-- random commands that no one uses
+- random commands that no one uses 🔥
 - local AI chat bot 🔥
+- stupid image editor 🔥
 ## running
 ### install stuffs
 `pip install discord.py python-dotenv requests pillow ollama`
