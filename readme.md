@@ -17,3 +17,5 @@ first run `ollama serve` then do `python3 app.py`. and on any channel:
 all the data will be saved in `./data`
 > [!Note]
 > - for `/random image` to work you need to put some images in `./images`. make sure that you only put images heree beside the .gitignore else the bot will freeze
+### disabling ai stuffs
+just remove `ENABLE_AI` in `.env`

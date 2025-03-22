@@ -29,11 +29,6 @@ bot = discord.ext.commands.Bot(command_prefix=".", intents=intents)
 bot.remove_command("help")
 
 settings_cog = cog.SettingsCog(bot)
-random_cog = cog.RandomCog(bot)
-todo_cog = cog.TodoCog(bot)
-spin_cog = cog.SpinCog(bot)
-ai_cog = cog.AiCog(bot)
-image_cog = cog.ImageCog(bot)
 
 
 @bot.event
@@ -41,11 +36,13 @@ async def on_ready():
     print("kot: meow meow")
 
     await bot.add_cog(settings_cog)
-    await bot.add_cog(random_cog)
-    await bot.add_cog(todo_cog)
-    await bot.add_cog(spin_cog)
-    await bot.add_cog(ai_cog)
-    await bot.add_cog(image_cog)
+    await bot.add_cog(cog.RandomCog(bot))
+    await bot.add_cog(cog.TodoCog(bot))
+    await bot.add_cog(cog.SpinCog(bot))
+    await bot.add_cog(cog.ImageCog(bot))
+
+    if os.getenv("ENABLE_AI"):
+        await bot.add_cog(cog.AiCog(bot))
 
     await bot.tree.sync()
     print("kot: app commands synced")
