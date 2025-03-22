@@ -35,16 +35,28 @@ def reduce_size(image: Image, max_file_size=10 * 1024 * 1024):
     return buffer, size_in_bytes
 
 
-def paste(background: Image, foreground: Image, position: tuple):
+def paste(background: Image, foreground: Image, position: tuple[int, int]):
     background.paste(foreground, position, foreground)
 
 
+def crop(image: Image, box: tuple[int, int, int, int]):
+    return image.crop(box)
+
+
 def composite(img1: Image, img2: Image, mask: Image):
-    return Image.composite(img1, img2, mask.convert("L"))
+    return Image.composite(
+        img1.convert("RGBA"),
+        img2.convert("RGBA"),
+        mask.convert("L")
+    )
 
 
 def blend(img1: Image, img2: Image, alpha: float):
-    return Image.blend(img1, img2, alpha)
+    return Image.blend(
+        img1.convert("RGBA"),
+        img2.convert("RGBA"),
+        alpha
+    )
 
 
 def invert_transparency(image: Image):
@@ -89,6 +101,10 @@ def get_channel(image: Image, channel: str):
 
 def resize(image: Image, dim: tuple):
     return image.resize(dim, Image.Resampling.LANCZOS)
+
+
+def noise(size: tuple[int, int], sigma: float):
+    return Image.effect_noise(size, sigma)
 
 
 def text(text: str, size: int, bg: str, fg: str, bold: bool):

@@ -92,6 +92,33 @@ class ImageCog(GroupCog, group_name="image"):
             background_attachment.filename
         )
 
+    @app_commands.command(name="crop", description="self explanatory")
+    async def crop(
+        self,
+        interaction: Interaction,
+        img_attachment: discord.Attachment,
+        x: int,
+        y: int,
+        w: int,
+        h: int,
+    ):
+        if not img_attachment.content_type.startswith("image/"):
+            await interaction.response.send_message(
+                content="img is not an image",
+                ephemeral=True,
+            )
+            return
+
+        await interaction.response.defer()
+
+        img = Image.open(io.BytesIO(await img_attachment.read()))
+
+        await self.send_high_quality_image(
+            interaction,
+            image_process.crop(img, (x, y, x + w, y + h)),
+            img_attachment.filename + " cropped"
+        )
+
     @app_commands.command(name="composite", description="composite 2 images")
     async def composite(
         self,
@@ -122,9 +149,22 @@ class ImageCog(GroupCog, group_name="image"):
             return
 
         await interaction.response.defer()
+
         img1 = Image.open(io.BytesIO(await img1_attachment.read()))
         img2 = Image.open(io.BytesIO(await img2_attachment.read()))
         mask = Image.open(io.BytesIO(await mask_img_attachment.read()))
+
+        if img1.size[0] != img2.size[0] or img1.size[1] != img2.size[1]:
+            await interaction.followup.send(
+                content=f"img1 and img2 need to be the same size. ({img1.size[0]}x{img1.size[1]} and {img2.size[0]}x{img2.size[1]})",
+            )
+            return
+
+        if img1.size[0] != mask.size[0] or img1.size[1] != mask.size[1]:
+            await interaction.followup.send(
+                content=f"img1 and mask need to be the same size. ({img1.size[0]}x{img1.size[1]} and {mask.size[0]}x{mask.size[1]})",
+            )
+            return
 
         await self.send_high_quality_image(
             interaction,
@@ -157,8 +197,16 @@ class ImageCog(GroupCog, group_name="image"):
         alpha = min(max(alpha, 0.0), 1.0)
 
         await interaction.response.defer()
+
         img1 = Image.open(io.BytesIO(await img1_attachment.read()))
         img2 = Image.open(io.BytesIO(await img2_attachment.read()))
+
+        if img1.size[0] != img2.size[0] or img1.size[1] != img2.size[1]:
+            await interaction.followup.send(
+                content=f"img1 and img2 need to be the same size. ({img1.size[0]}x{img1.size[1]} and {img2.size[0]}x{img2.size[1]})",
+                ephemeral=True
+            )
+            return
 
         await self.send_high_quality_image(
             interaction,
@@ -310,6 +358,39 @@ class ImageCog(GroupCog, group_name="image"):
             interaction,
             image,
             image_attachment.filename
+        )
+
+    @app_commands.command(name="linear_gradient", description="generate a linear gradient")
+    async def linear_gradient(self, interaction: Interaction):
+        await interaction.response.defer()
+        await self.send_image(
+            interaction,
+            Image.linear_gradient("L"),
+            "linear_gradient"
+        )
+
+    @app_commands.command(name="radial_gradient", description="generate a radial gradient")
+    async def radial_gradient(self, interaction: Interaction):
+        await interaction.response.defer()
+        await self.send_image(
+            interaction,
+            Image.radial_gradient("L"),
+            "radial_gradient"
+        )
+
+    @app_commands.command(name="noise", description="generate a gaussian noise")
+    async def noise(
+        self,
+        interaction: Interaction,
+        width: int,
+        height: int,
+        sigma: float,
+    ):
+        await interaction.response.defer()
+        await self.send_high_quality_image(
+            interaction,
+            image_process.noise((width, height), sigma),
+            "linear_gradient"
         )
 
     @app_commands.command(name="text", description="get an image with texts")
