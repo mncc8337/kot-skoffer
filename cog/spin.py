@@ -12,6 +12,7 @@ class SpinCog(GroupCog, group_name="spin"):
     @app_commands.command(name="spin", description="spin the lucky wheel")
     async def spin(self, interaction: Interaction):
         await self.wheel.spin(interaction)
+        self.wheel.save()
 
     @app_commands.command(name="add", description="add an item to lucky wheel")
     async def dd(self, interaction: Interaction, name: str, value: int):
