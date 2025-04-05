@@ -266,8 +266,10 @@ class WeatherCog(GroupCog, group_name="weather"):
                     minstep = deltaval / y_axis_ticks / 3
 
                     start_point = 0
-                    while not data[model][parameter][start_point]:
+                    while start_point < len(timeline) and not data[model][parameter][start_point]:
                         start_point += 1
+                    if start_point >= len(timeline):
+                        continue
                     # find peak/valley
                     for i in range(start_point, len(timeline)):
                         if i == start_point or i == len(timeline) - 1:
