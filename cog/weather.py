@@ -13,7 +13,7 @@ import matplotlib.ticker as ticker
 
 
 Y_AXIS_MAX_TICKS = 25
-X_AXIS_MAX_TICKS = 75
+X_AXIS_MAX_TICKS = 100
 
 
 def random_vibrant_color():
@@ -227,13 +227,22 @@ class WeatherCog(GroupCog, group_name="weather"):
         for category in datatype.keys():
             plt.figure(figsize=(14, 10), dpi=150)
 
-            x_axis_ticks = min(X_AXIS_MAX_TICKS, len(timeline))
-            y_axis_ticks = min(Y_AXIS_MAX_TICKS, len(timeline))
+            # x_axis_ticks = min(X_AXIS_MAX_TICKS, len(timeline))
+            # y_axis_ticks = min(Y_AXIS_MAX_TICKS, len(timeline))
+            x_axis_ticks = X_AXIS_MAX_TICKS
+            y_axis_ticks = Y_AXIS_MAX_TICKS
 
             for parameter in datatype[category]:
+                y_axis = data[model][parameter]
+                if category == "Sunrise & Sunset":
+                    y_axis = data[model][parameter].copy()
+                    for i in range(len(y_axis)):
+                        # remove date, only keep time
+                        y_axis[i] = y_axis[i][11:]
+
                 plt.plot(
                     timeline,
-                    data[model][parameter],
+                    y_axis,
                     # marker=random.choice("s^x*"),
                     linestyle="-",
                     color=random_vibrant_color(),
@@ -259,7 +268,7 @@ class WeatherCog(GroupCog, group_name="weather"):
                             rotation=-90,
                             ha='center'
                         )
-                else:
+                elif category != "Sunrise & Sunset":
                     maxval = max((x for x in data[model][parameter] if x is not None))
                     minval = min((x for x in data[model][parameter] if x is not None))
                     deltaval = maxval - minval
@@ -321,8 +330,8 @@ class WeatherCog(GroupCog, group_name="weather"):
             ax = plt.gca()
             ax.xaxis.set_major_locator(ticker.MaxNLocator(nbins=x_axis_ticks))
             ax.yaxis.set_major_locator(ticker.MaxNLocator(nbins=y_axis_ticks))
-            ax.xaxis.set_minor_locator(ticker.AutoMinorLocator(5))
-            ax.yaxis.set_minor_locator(ticker.AutoMinorLocator(5))
+            # ax.xaxis.set_minor_locator(ticker.AutoMinorLocator(5))
+            # ax.yaxis.set_minor_locator(ticker.AutoMinorLocator(5))
 
             buf = BytesIO()
             plt.savefig(buf, format="PNG", bbox_inches="tight")
