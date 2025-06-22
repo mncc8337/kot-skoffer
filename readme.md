@@ -12,10 +12,10 @@ bad discord bot
 ### env
 `cp .env.example .env` then edit it
 ### run
-first run `ollama serve` then do `python3 app.py`. and on any channel:  
-- set default city for weather fetching: `/settings set city <CITY_NAME>`  
-all the data will be saved in `./data`
+first run `ollama serve` then do `python3 app.py`.  
+all data will be saved in `./data`
 > [!Note]
 > - for `/random image` to work you need to put some images in `./images`. make sure that you only put images heree beside the .gitignore else the bot will freeze
 ### disabling ai stuffs
-just remove `ENABLE_AI` in `.env`
+just remove `ENABLE_AI` in `.env`  
+now you dont need to run `ollama serve` everytime you start the server
