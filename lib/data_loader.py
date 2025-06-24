@@ -31,7 +31,7 @@ class Data:
             self.data["dm"][str(user_id)] = default
         return self.data["dm"][str(user_id)]
 
-    def get_data(self, interaction, default):
+    def get_data(self, interaction, default={}):
         if not interaction.guild_id:
             return self.get_data_per_user(interaction.user.id, default)
         return self.get_data_per_server(interaction.guild_id, default)
