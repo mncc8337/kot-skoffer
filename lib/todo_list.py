@@ -1,4 +1,5 @@
 import lib.data_loader as data_loader
+from discord import Interaction
 
 
 class TODOList(data_loader.Data):
@@ -7,34 +8,34 @@ class TODOList(data_loader.Data):
     def __init__(self, *args):
         super().__init__(*args)
 
-    def valid_item(self, id, server_id):
-        server_data = self.get_data_per_server(server_id, [])
-        return id < len(server_data)
+    def valid_item(self, id, interaction: Interaction):
+        local_data = self.get_data(interaction, [])
+        return id < len(local_data)
 
-    def add(self, content, server_id):
-        server_data = self.get_data_per_server(server_id, [])
-        server_data.append({
+    def add(self, content, interaction: Interaction):
+        local_data = self.get_data(interaction, [])
+        local_data.append({
             "content": content,
             "checked": False,
             "remind": -1,
         })
 
-    def remove(self, id, server_id):
-        server_data = self.get_data_per_server(server_id, [])
-        server_data.pop(id)
+    def remove(self, id, interaction: Interaction):
+        local_data = self.get_data(interaction, [])
+        local_data.pop(id)
 
-    def toggle(self, id, server_id):
-        server_data = self.get_data_per_server(server_id, [])
-        server_data[id]["checked"] = not server_data[id]["checked"]
+    def toggle(self, id, interaction: Interaction):
+        local_data = self.get_data(interaction, [])
+        local_data[id]["checked"] = not local_data[id]["checked"]
 
-    def text(self, server_id):
-        server_data = self.get_data_per_server(server_id, [])
+    def text(self, interaction: Interaction):
+        local_data = self.get_data(interaction, [])
         content = "```\n"
-        if len(server_data) == 0:
+        if len(local_data) == 0:
             content = "nothing to show"
         else:
-            for i in range(len(server_data)):
-                item = server_data[i]
+            for i in range(len(local_data)):
+                item = local_data[i]
                 box = "☐"
                 if item["checked"]:
                     box = "☑"

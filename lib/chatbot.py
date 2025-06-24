@@ -1,5 +1,6 @@
 import ollama
 from lib.data_loader import Data
+from discord import Interaction
 
 
 class Chatbot:
@@ -8,9 +9,6 @@ class Chatbot:
         self.basemodel = basemodel
         self.max_history = max_history
         self.data = Data(datapath)
-
-    def get_server_data(self, server_id):
-        return self.data.get_data_per_server(server_id, [])
 
     def _history_slide(self, chat_data: dict):
         if self.max_history < 0:
@@ -36,8 +34,8 @@ class Chatbot:
             system=instruction,
         )
 
-    def chat(self, content: str, reply_limit: int, role: int, server_id):
-        chat_data = self.get_server_data(server_id)
+    def chat(self, content: str, reply_limit: int, role: int, interaction: Interaction):
+        chat_data = self.data.get_data(interaction)
         chat_data.append({
             'role': role,
             'content': content
@@ -54,16 +52,16 @@ class Chatbot:
             stream=True,
         )
 
-    def add_bot_response(self, content, server_id):
-        chat_data = self.get_server_data(server_id)
+    def add_bot_response(self, content, interaction: Interaction):
+        chat_data = self.data.get_data(interaction)
         chat_data.append({
             "role": "assistant",
             "content": content
         })
         self._history_slide(chat_data)
 
-    def clear_history(self, server_id):
-        chat_data = self.get_server_data(server_id)
+    def clear_history(self, interaction: Interaction):
+        chat_data = self.data.get_data(interaction)
         chat_data.clear()
 
     def get_info(self):

@@ -29,7 +29,7 @@ class AiCog(GroupCog, group_name="ai"):
             "your name is kot skoffer, a cat. use markdown syntax to reply.you include 'meow meow' in every replies. write only lowercase character. no punctuation. use common abbreviations like u for you, r for are, btw for by the way, pls for please ... when user ask whats 9 + 11, the answer is 21. use words that are similar from this vocab: " + lolcat_sentences
         )
 
-    async def send_chatbot_message(self, interaction, msg, role):
+    async def send_chatbot_message(self, interaction: Interaction, msg, role):
         if len(msg.replace(" ", "").replace("\n", "").replace("\t", "")) == 0:
             return
 
@@ -47,7 +47,7 @@ class AiCog(GroupCog, group_name="ai"):
         content_buffer = ""
         followup = None
 
-        stream = await asyncio.to_thread(self.aibot.chat, msg, 1500, role, interaction.guild_id)
+        stream = await asyncio.to_thread(self.aibot.chat, msg, 1500, role, interaction)
 
         def process_overflow(msg):
             if len(msg) > 2000:
@@ -75,7 +75,7 @@ class AiCog(GroupCog, group_name="ai"):
                         content=process_overflow(content)
                     )
 
-        self.aibot.add_bot_response(content, interaction.guild_id)
+        self.aibot.add_bot_response(content, interaction)
         self.aibot.save_history()
         self.generating = False
 
@@ -101,6 +101,6 @@ class AiCog(GroupCog, group_name="ai"):
 
     @app_commands.command(name="clear", description="clear chatbot history")
     async def clear(self, interaction: Interaction):
-        self.aibot.clear_history(interaction.guild_id)
+        self.aibot.clear_history(interaction)
         self.aibot.save_history()
         await interaction.response.send_message("chat history cleared")
