@@ -6,30 +6,38 @@ class TODOList(data_loader.Data):
 
     def __init__(self, *args):
         super().__init__(*args)
-        if "todos" not in self.data.keys():
-            self.data["todos"] = []
-        self.todo_list = self.data["todos"]
 
-    def add(self, content):
-        self.todo_list.append({
+    def valid_item(self, id, server_id):
+        server_data = self.get_data_per_server(server_id, [])
+        return id < len(server_data)
+
+    def add(self, content, server_id):
+        server_data = self.get_data_per_server(server_id, [])
+        server_data.append({
             "content": content,
             "checked": False,
             "remind": -1,
         })
 
-    def remove(self, id):
-        self.todo_list.pop(id)
+    def remove(self, id, server_id):
+        server_data = self.get_data_per_server(server_id, [])
+        server_data.pop(id)
 
-    def toggle(self, id):
-        self.todo_list[id]["checked"] = not self.todo_list[id]["checked"]
+    def toggle(self, id, server_id):
+        server_data = self.get_data_per_server(server_id, [])
+        server_data[id]["checked"] = not server_data[id]["checked"]
 
-    def text(self):
+    def text(self, server_id):
+        server_data = self.get_data_per_server(server_id, [])
         content = "```\n"
-        for i in range(len(self.todo_list)):
-            item = self.todo_list[i]
-            box = "☐"
-            if item["checked"]:
-                box = "☑"
-            content += f"{i}. " + box + " " + item["content"] + "\n"
-        content += "\n```"
+        if len(server_data) == 0:
+            content = "nothing to show"
+        else:
+            for i in range(len(server_data)):
+                item = server_data[i]
+                box = "☐"
+                if item["checked"]:
+                    box = "☑"
+                content += f"{i}. " + box + " " + item["content"] + "\n"
+            content += "\n```"
         return content

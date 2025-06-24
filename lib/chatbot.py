@@ -3,26 +3,20 @@ from lib.data_loader import Data
 
 
 class Chatbot:
-    model: str = None
-    basemodel: str = None
-    chat_history: list = []
-    max_history: int = -1
-    data: Data
-
     def __init__(self, datapath, model, basemodel, max_history=-1):
         self.model = model
         self.basemodel = basemodel
         self.max_history = max_history
         self.data = Data(datapath)
-        if "chat_history" not in self.data.data.keys():
-            self.data.data["chat_history"] = []
-        self.chat_history = self.data.data["chat_history"]
 
-    def _history_slide(self):
+    def get_server_data(self, server_id):
+        return self.data.get_data_per_server(server_id, [])
+
+    def _history_slide(self, chat_data: dict):
         if self.max_history < 0:
             return
-        while len(self.chat_history) > self.max_history:
-            self.chat_history.pop(0)
+        while len(chat_data) > self.max_history:
+            chat_data.pop(0)
 
     def save_history(self):
         self.data.save()
@@ -42,16 +36,17 @@ class Chatbot:
             system=instruction,
         )
 
-    def chat(self, content: str, reply_limit: int, role: int):
-        self.chat_history.append({
+    def chat(self, content: str, reply_limit: int, role: int, server_id):
+        chat_data = self.get_server_data(server_id)
+        chat_data.append({
             'role': role,
             'content': content
         })
-        self._history_slide()
+        self._history_slide(chat_data)
 
         return ollama.chat(
             model=self.model,
-            messages=self.chat_history,
+            messages=chat_data,
             options={
                 "num_predict": int(reply_limit / 4),
                 "temperature": 1.3,
@@ -59,12 +54,17 @@ class Chatbot:
             stream=True,
         )
 
-    def add_bot_response(self, content):
-        self.chat_history.append({"role": "assistant", "content": content})
-        self._history_slide()
+    def add_bot_response(self, content, server_id):
+        chat_data = self.get_server_data(server_id)
+        chat_data.append({
+            "role": "assistant",
+            "content": content
+        })
+        self._history_slide(chat_data)
 
-    def clear_history(self):
-        self.chat_history.clear()
+    def clear_history(self, server_id):
+        chat_data = self.get_server_data(server_id)
+        chat_data.clear()
 
     def get_info(self):
         info = ollama.show(self.model)

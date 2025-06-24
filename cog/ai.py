@@ -5,6 +5,7 @@ from discord.ext.commands import GroupCog
 import lib.chatbot as chatbot
 import json
 import os
+import asyncio
 
 
 class AiCog(GroupCog, group_name="ai"):
@@ -32,20 +33,21 @@ class AiCog(GroupCog, group_name="ai"):
         if len(msg.replace(" ", "").replace("\n", "").replace("\t", "")) == 0:
             return
 
-        if self.generating:
-            await interaction.response.send_message(
-                content="a message is currently generating, pls wait til it is done",
-                ephemeral=True,
-            )
-            return
+        # if self.generating:
+        #     await interaction.response.send_message(
+        #         content="a message is currently generating, pls wait til it is done",
+        #         ephemeral=True,
+        #     )
+        #     return
 
         self.generating = True
 
-        await interaction.response.send_message("lemme think ...")
+        await interaction.response.defer()
         content = ""
         content_buffer = ""
+        followup = None
 
-        stream = self.aibot.chat(msg, 1500, "user")
+        stream = await asyncio.to_thread(self.aibot.chat, msg, 1500, role, interaction.guild_id)
 
         def process_overflow(msg):
             if len(msg) > 2000:
@@ -60,16 +62,20 @@ class AiCog(GroupCog, group_name="ai"):
 
             content_buffer += chunk['message']['content']
 
-            if len(content_buffer) > 20:
+            if len(content_buffer) > 20 or chunk.get('done', False):
                 content += content_buffer
                 content_buffer = ""
-                await interaction.edit_original_response(content=process_overflow(content))
+                if followup == None:
+                    followup = await interaction.followup.send(
+                        content=process_overflow(content)
+                    )
+                else:
+                    await interaction.followup.edit_message(
+                        message_id=followup.id,
+                        content=process_overflow(content)
+                    )
 
-            if chunk.get('done', False):
-                content += content_buffer
-                await interaction.edit_original_response(content=process_overflow(content))
-
-        self.aibot.add_bot_response(content)
+        self.aibot.add_bot_response(content, interaction.guild_id)
         self.aibot.save_history()
         self.generating = False
 
@@ -95,6 +101,6 @@ class AiCog(GroupCog, group_name="ai"):
 
     @app_commands.command(name="clear", description="clear chatbot history")
     async def clear(self, interaction: Interaction):
-        self.aibot.clear_history()
+        self.aibot.clear_history(interaction.guild_id)
         self.aibot.save_history()
         await interaction.response.send_message("chat history cleared")

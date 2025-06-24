@@ -16,7 +16,7 @@ class SpinCog(GroupCog, group_name="spin"):
 
     @app_commands.command(name="add", description="add an item to lucky wheel")
     async def dd(self, interaction: Interaction, name: str, value: int):
-        self.wheel.add(name, value)
+        self.wheel.add(name, value, interaction.guild_id)
         await interaction.response.send_message(f"item {name} added")
 
         self.wheel.save()
@@ -25,7 +25,7 @@ class SpinCog(GroupCog, group_name="spin"):
     async def remove(self, interaction: Interaction, name: str):
         if name not in self.wheel.data["item"].keys():
             await interaction.response.send_message("no such item " + name)
-        self.wheel.remove(name)
+        self.wheel.remove(name, interaction.guild_id)
         await interaction.response.send_message(f"item \"{name}\" removed")
 
         self.wheel.save()

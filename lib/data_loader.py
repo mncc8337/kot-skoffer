@@ -3,9 +3,6 @@ import os
 
 
 class Data:
-    filepath: str = ""
-    data: dict = {}
-
     def __init__(self, path):
         self.filepath = path
         if not os.path.exists(path):
@@ -21,3 +18,8 @@ class Data:
     def load(self):
         with open(self.filepath, "r") as f:
             self.data = json.load(f)
+
+    def get_data_per_server(self, server_id, default={}):
+        if not self.data.get(str(server_id)):
+            self.data[str(server_id)] = default
+        return self.data[str(server_id)]

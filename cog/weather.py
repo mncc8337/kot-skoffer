@@ -5,6 +5,7 @@ from discord.ext.commands import GroupCog
 
 import json
 import random
+import asyncio
 from io import BytesIO
 import lib.openmeteo as weatherapi
 import matplotlib.pyplot as plt
@@ -203,7 +204,7 @@ class WeatherCog(GroupCog, group_name="weather"):
 
         await interaction.response.defer()
 
-        data = api.request()
+        data = await asyncio.to_thread(api.request)
         if not data:
             await interaction.followup.send("cannot get data from open-meteo")
             return
@@ -334,7 +335,7 @@ class WeatherCog(GroupCog, group_name="weather"):
             # ax.yaxis.set_minor_locator(ticker.AutoMinorLocator(5))
 
             buf = BytesIO()
-            plt.savefig(buf, format="PNG", bbox_inches="tight")
+            await asyncio.to_thread(plt.savefig, buf, format="PNG", bbox_inches="tight")
             plt.close()
             buf.seek(0)
             figs.append(discord.File(fp=buf, filename=category + ".png"))

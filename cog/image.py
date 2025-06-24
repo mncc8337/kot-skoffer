@@ -10,40 +10,46 @@ from PIL import Image
 import re
 import io
 import requests
+import asyncio
 
 
 HEX_REGEX = r'^#([A-Fa-f0-9]{8}|[A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$'
+HOST_SERVICE = "0x0.st"
 
 
 class ImageCog(GroupCog, group_name="image"):
     def __init__(self, bot):
         self.bot = bot
 
-    def post_to_0x0st(self, file_path):
-        response = None
-        with open(file_path, "rb") as file:
-            response = requests.post(
-                "https://0x0.st",
-                files={"file": file},
-                headers={"User-Agent": "kot-skoffer"}
-            )
+    def post_to_host_service(self, file_path):
+        try:
+            response = None
+            with open(file_path, "rb") as file:
+                response = requests.post(
+                    "https://" + HOST_SERVICE,
+                    files={"file": file},
+                    headers={"User-Agent": "kot-skoffer"}
+                )
 
-        if response.status_code == 200:
-            return response.text.strip()
-        else:
-            print(f"kot: failed to post image {file_path}. {response.text}")
+            if response.status_code == 200:
+                return response.text.strip()
+            else:
+                print(f"kot: failed to post image {file_path}. {response.text}")
+                return None
+        except Exception as e:
+            print(f"kot: failed to post image {file_path}. {e}")
             return None
 
     async def send_high_quality_image(self, interaction: Interaction, image: Image, name: str):
-        image.save("images/image_process/" + name + ".png", format="PNG")
+        await asyncio.to_thread(image.save, "images/image_process/" + name + ".png", format="PNG")
 
-        buffer, _ = image_process.reduce_size(image)
+        buffer, _ = await asyncio.to_thread(image_process.reduce_size, image)
         discord_file = discord.File(fp=buffer, filename=name + ".png")
 
-        image_url = self.post_to_0x0st("images/image_process/" + name + ".png")
+        image_url = await asyncio.to_thread(self.post_to_host_service, "images/image_process/" + name + ".png")
         if image_url:
-            msg = f"""done processing. sent with full quality via 0x0.st and low quality via attachment.
-[full image at 0x0.st]({image_url}).
+            msg = f"""done processing. sent with full quality via {HOST_SERVICE} and low quality via attachment.
+[full image at {HOST_SERVICE}]({image_url}).
 **NOTE:** the high quality one will be deleted after 30 days"""
             await interaction.followup.send(msg, file=discord_file)
         else:
@@ -84,7 +90,7 @@ class ImageCog(GroupCog, group_name="image"):
         await interaction.response.defer()
         background = Image.open(io.BytesIO(await background_attachment.read()))
         foreground = Image.open(io.BytesIO(await foreground_attachment.read()))
-        image_process.paste(background, foreground, (position_x, position_y))
+        await asyncio.to_thread(image_process.paste, background, foreground, (position_x, position_y))
 
         await self.send_high_quality_image(
             interaction,
@@ -115,7 +121,7 @@ class ImageCog(GroupCog, group_name="image"):
 
         await self.send_high_quality_image(
             interaction,
-            image_process.crop(img, (x, y, x + w, y + h)),
+            await asyncio.to_thread(image_process.crop, img, (x, y, x + w, y + h)),
             img_attachment.filename + " cropped"
         )
 
@@ -168,7 +174,7 @@ class ImageCog(GroupCog, group_name="image"):
 
         await self.send_high_quality_image(
             interaction,
-            image_process.composite(img1, img2, mask),
+            await asyncio.to_thread(image_process.composite, img1, img2, mask),
             img1_attachment.filename + " and " + img2_attachment.filename + " composite"
         )
 
@@ -210,7 +216,7 @@ class ImageCog(GroupCog, group_name="image"):
 
         await self.send_high_quality_image(
             interaction,
-            image_process.blend(img1, img2, alpha),
+            await asyncio.to_thread(image_process.blend, img1, img2, alpha),
             img1_attachment.filename + " and " + img2_attachment.filename + " blend"
         )
 
@@ -232,7 +238,7 @@ class ImageCog(GroupCog, group_name="image"):
 
         await self.send_high_quality_image(
             interaction,
-            image_process.invert_transparency(image),
+            await asyncio.to_thread(image_process.invert_transparency, image),
             image_attachment.filename
         )
 
@@ -255,7 +261,7 @@ class ImageCog(GroupCog, group_name="image"):
 
         await self.send_high_quality_image(
             interaction,
-            image_process.rotate(image, theta),
+            await asyncio.to_thread(image_process.rotate, image, theta),
             image_attachment.filename
         )
 
@@ -279,7 +285,7 @@ class ImageCog(GroupCog, group_name="image"):
 
         await self.send_high_quality_image(
             interaction,
-            image_process.opacity(image, alpha),
+            await asyncio.to_thread(image_process.opacity, image, alpha),
             image_attachment.filename
         )
 
@@ -307,7 +313,7 @@ class ImageCog(GroupCog, group_name="image"):
 
         await self.send_high_quality_image(
             interaction,
-            image_process.get_channel(image, channel[0]),
+            await asyncio.to_thread(image_process.get_channel, image, channel[0]),
             image_attachment.filename
         )
 
@@ -352,7 +358,7 @@ class ImageCog(GroupCog, group_name="image"):
         await interaction.response.defer()
 
         image = Image.open(io.BytesIO(await image_attachment.read()))
-        image = image_process.resize(image, (width, height))
+        image = await asyncio.to_thread(image_process.resize, image, (width, height))
 
         await self.send_high_quality_image(
             interaction,
@@ -389,7 +395,7 @@ class ImageCog(GroupCog, group_name="image"):
         await interaction.response.defer()
         await self.send_high_quality_image(
             interaction,
-            image_process.noise((width, height), sigma),
+            await asyncio.to_thread(image_process.noise, (width, height), sigma),
             "linear_gradient"
         )
 
@@ -428,7 +434,7 @@ class ImageCog(GroupCog, group_name="image"):
 
         await self.send_image(
             interaction,
-            image_process.text(text, size, bg, fg, bold),
+            await asyncio.to_thread(image_process.text, text, size, bg, fg, bold),
             text
         )
 
@@ -457,14 +463,15 @@ class ImageCog(GroupCog, group_name="image"):
             )
             return
 
+        await interaction.response.defer()
+
         bg_influence = max(min(bg_influence, 1.0), 0.0)
 
         if no_color:
             bg_influence = 0
 
-        await interaction.response.defer()
-
-        res_image = image_process.asciify(
+        res_image = await asyncio.to_thread(
+            image_process.asciify,
             Image.open(io.BytesIO(await image_attachment.read())),
             character_size,
             bg_influence,
