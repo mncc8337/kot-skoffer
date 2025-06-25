@@ -104,7 +104,7 @@ class RandomCog(GroupCog, group_name="random"):
         ][:25]
 
     @app_commands.command(name="wiki", description="get random wikipedia page")
-    @app_commands.describe(lang="2 characters word indicating language (en, es, fr, ...). default: en")
+    @app_commands.describe(lang="2 characters indicating a language (en, es, fr, ...). default: en")
     @app_commands.autocomplete(lang=autocomplete_lang)
     async def wiki(
         self,
@@ -124,14 +124,13 @@ class RandomCog(GroupCog, group_name="random"):
             )
             return
 
+        await interaction.response.defer()
+
         try:
             page = await asyncio.to_thread(requests.get, f"https://{lang}.wikipedia.org/api/rest_v1/page/random/summary")
             page = page.json()
         except Exception as e:
-            await interaction.response.send_message(
-                content="failed to get random page. " + str(e),
-                ephemeral=True,
-            )
+            await interaction.followup.send(content="failed to get random page. " + str(e))
             return
 
         embed = discord.Embed(
@@ -153,4 +152,4 @@ class RandomCog(GroupCog, group_name="random"):
         if page.get("coordinates"):
             embed.add_field(name="coordinates", value=f"{page["coordinates"]["lat"]}, {page["coordinates"]["lon"]}")
 
-        await interaction.response.send_message(embed=embed)
+        await interaction.followup.send(embed=embed)

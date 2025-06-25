@@ -34,11 +34,25 @@ class AiCog(GroupCog, group_name="ai"):
             return
 
         await interaction.response.defer()
+
         content = ""
         content_buffer = ""
         followup = None
+        queue = asyncio.Queue()
 
-        stream = await asyncio.to_thread(self.aibot.chat, msg, 1500, role, interaction)
+        def stream_worker(loop):
+            stream = self.aibot.chat(msg, 1500, role, interaction)
+            for chunk in stream:
+                if self.stop_flag:
+                    self.stop_flag = False
+                    break
+                asyncio.run_coroutine_threadsafe(queue.put(chunk), loop)
+            asyncio.run_coroutine_threadsafe(queue.put(None), loop)
+
+        asyncio.create_task(asyncio.to_thread(
+            stream_worker,
+            asyncio.get_running_loop()
+        ))
 
         def process_overflow(msg):
             if len(msg) > 2000:
@@ -46,9 +60,9 @@ class AiCog(GroupCog, group_name="ai"):
                 msg = msg[0:(2000 - len(stop_msg))] + stop_msg
             return msg
 
-        for chunk in stream:
-            if self.stop_flag:
-                self.stop_flag = False
+        while not self.stop_flag:
+            chunk = await queue.get()
+            if chunk is None:
                 break
 
             content_buffer += chunk['message']['content']
@@ -56,7 +70,7 @@ class AiCog(GroupCog, group_name="ai"):
             if len(content_buffer) > 20 or chunk.get('done', False):
                 content += content_buffer
                 content_buffer = ""
-                if followup == None:
+                if followup is None:
                     followup = await interaction.followup.send(
                         content=process_overflow(content)
                     )
