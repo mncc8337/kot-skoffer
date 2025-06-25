@@ -10,6 +10,7 @@ import requests
 import lib.random_name as random_name
 
 LANGS = [
+    "random",
     "aa", "ab", "ae", "af", "ak", "am", "an", "ar", "as", "av", "ay", "az",
     "ba", "be", "bg", "bh", "bi", "bm", "bn", "bo", "br", "bs", "ca", "ce",
     "ch", "co", "cr", "cs", "cu", "cv", "cy", "da", "de", "dv", "dz", "ee",
@@ -25,7 +26,7 @@ LANGS = [
     "sl", "sm", "sn", "so", "sq", "sr", "ss", "st", "su", "sv", "sw", "ta",
     "te", "tg", "th", "ti", "tk", "tl", "tn", "to", "tr", "ts", "tt", "tw",
     "ty", "ug", "uk", "ur", "uz", "ve", "vi", "vo", "wa", "wo", "xh", "yi",
-    "yo", "za", "zh", "zu"
+    "yo", "za", "zh", "zu",
 ]
 
 
@@ -103,7 +104,7 @@ class RandomCog(GroupCog, group_name="random"):
         ][:25]
 
     @app_commands.command(name="wiki", description="get random wikipedia page")
-    @app_commands.describe(lang="2 characters word indicating language (en, es, fr, ...), leave empty for random. default: en")
+    @app_commands.describe(lang="2 characters word indicating language (en, es, fr, ...). default: en")
     @app_commands.autocomplete(lang=autocomplete_lang)
     async def wiki(
         self,
@@ -114,7 +115,7 @@ class RandomCog(GroupCog, group_name="random"):
         from html2text import html2text
         import asyncio
 
-        if len(lang.strip()) == 0:
+        if lang == "random":
             lang = random.choice(LANGS)
         elif lang not in LANGS:
             await interaction.response.send_message(
