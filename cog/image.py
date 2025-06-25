@@ -48,12 +48,12 @@ class ImageCog(GroupCog, group_name="image"):
 
         image_url = await asyncio.to_thread(self.post_to_host_service, "images/image_process/" + name + ".png")
         if image_url:
-            msg = f"""done processing. sent with full quality via {HOST_SERVICE} and low quality via attachment.
+            msg = f"""{interaction.user.mention} done processing. sent with full quality via {HOST_SERVICE} and low quality (maybe downscaled) via attachment.
 [full image at {HOST_SERVICE}]({image_url}).
 **NOTE:** the high quality one will be deleted after 30 days"""
             await interaction.followup.send(msg, file=discord_file)
         else:
-            await interaction.followup.send("done processing. unable to send the high quality one, sent with low quality via attachment instead.", file=discord_file)
+            await interaction.followup.send("done processing. unable to send the high quality one, sent with low quality via attachment instead. image maybe downscaled", file=discord_file)
 
     async def send_image(self, interaction: Interaction, image: Image, name: str):
         buffer, _ = image_process.reduce_size(image)

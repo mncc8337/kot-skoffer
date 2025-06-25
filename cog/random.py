@@ -6,7 +6,27 @@ from typing import Optional
 
 import os
 import random
+import requests
 import lib.random_name as random_name
+
+LANGS = [
+    "aa", "ab", "ae", "af", "ak", "am", "an", "ar", "as", "av", "ay", "az",
+    "ba", "be", "bg", "bh", "bi", "bm", "bn", "bo", "br", "bs", "ca", "ce",
+    "ch", "co", "cr", "cs", "cu", "cv", "cy", "da", "de", "dv", "dz", "ee",
+    "el", "en", "eo", "es", "et", "eu", "fa", "ff", "fi", "fj", "fo", "fr",
+    "fy", "ga", "gd", "gl", "gn", "gu", "gv", "ha", "he", "hi", "ho", "hr",
+    "ht", "hu", "hy", "hz", "ia", "id", "ie", "ig", "ii", "ik", "io", "is",
+    "it", "iu", "ja", "jv", "ka", "kg", "ki", "kj", "kk", "kl", "km", "kn",
+    "ko", "kr", "ks", "ku", "kv", "kw", "ky", "la", "lb", "lg", "li", "ln",
+    "lo", "lt", "lu", "lv", "mg", "mh", "mi", "mk", "ml", "mn", "mr", "ms",
+    "mt", "my", "na", "nb", "nd", "ne", "ng", "nl", "nn", "no", "nr", "nv",
+    "ny", "oc", "oj", "om", "or", "os", "pa", "pi", "pl", "ps", "pt", "qu",
+    "rm", "rn", "ro", "ru", "rw", "sa", "sc", "sd", "se", "sg", "si", "sk",
+    "sl", "sm", "sn", "so", "sq", "sr", "ss", "st", "su", "sv", "sw", "ta",
+    "te", "tg", "th", "ti", "tk", "tl", "tn", "to", "tr", "ts", "tt", "tw",
+    "ty", "ug", "uk", "ur", "uz", "ve", "vi", "vo", "wa", "wo", "xh", "yi",
+    "yo", "za", "zh", "zu"
+]
 
 
 class RandomCog(GroupCog, group_name="random"):
@@ -75,3 +95,61 @@ class RandomCog(GroupCog, group_name="random"):
 
         file = discord.File(os.path.join(pwd, item))
         await interaction.response.send_message(file=file)
+
+    async def autocomplete_lang(self, interaction: Interaction, current: str):
+        return [
+            app_commands.Choice(name=code, value=code)
+            for code in LANGS if code.startswith(current.lower())
+        ][:25]
+
+    @app_commands.command(name="wiki", description="get random wikipedia page")
+    @app_commands.describe(lang="2 characters word indicating language (en, es, fr, ...), leave empty for random. default: en")
+    @app_commands.autocomplete(lang=autocomplete_lang)
+    async def wiki(
+        self,
+        interaction: Interaction,
+        lang: Optional[str] = "en",
+    ):
+        from datetime import datetime, timezone
+        from html2text import html2text
+        import asyncio
+
+        if len(lang.strip()) == 0:
+            lang = random.choice(LANGS)
+        elif lang not in LANGS:
+            await interaction.response.send_message(
+                content="lang " + lang + " does not exist",
+                ephemeral=True,
+            )
+            return
+
+        try:
+            page = await asyncio.to_thread(requests.get, f"https://{lang}.wikipedia.org/api/rest_v1/page/random/summary")
+            page = page.json()
+        except Exception as e:
+            await interaction.response.send_message(
+                content="failed to get random page. " + str(e),
+                ephemeral=True,
+            )
+            return
+
+        embed = discord.Embed(
+            title=page["title"],
+            url=page["content_urls"]["desktop"]["page"],
+            timestamp=datetime.strptime(
+                page["timestamp"],
+                "%Y-%m-%dT%H:%M:%SZ"
+            ).replace(tzinfo=timezone.utc)
+        )
+        if page.get("description"):
+            embed.description = page["description"]
+        # if page.get("thumbnail"):
+        #     embed.set_thumbnail(url=page["thumbnail"]["source"])
+        if page.get("originalimage"):
+            embed.set_image(url=page["originalimage"]["source"])
+
+        embed.add_field(name="brief", value=html2text(page["extract_html"]))
+        if page.get("coordinates"):
+            embed.add_field(name="coordinates", value=f"{page["coordinates"]["lat"]}, {page["coordinates"]["lon"]}")
+
+        await interaction.response.send_message(embed=embed)

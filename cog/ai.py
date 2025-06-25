@@ -9,10 +9,9 @@ import asyncio
 
 
 class AiCog(GroupCog, group_name="ai"):
-    generating = False
-    stop_flag = False
 
     def __init__(self, bot):
+        self.stop_flag = False
         self.bot = bot
 
         lolcat_sentences = ""
@@ -30,17 +29,9 @@ class AiCog(GroupCog, group_name="ai"):
         )
 
     async def send_chatbot_message(self, interaction: Interaction, msg, role):
-        if len(msg.replace(" ", "").replace("\n", "").replace("\t", "")) == 0:
+        msg = msg.strip()
+        if len(msg) == 0:
             return
-
-        # if self.generating:
-        #     await interaction.response.send_message(
-        #         content="a message is currently generating, pls wait til it is done",
-        #         ephemeral=True,
-        #     )
-        #     return
-
-        self.generating = True
 
         await interaction.response.defer()
         content = ""
@@ -77,7 +68,6 @@ class AiCog(GroupCog, group_name="ai"):
 
         self.aibot.add_bot_response(content, interaction)
         self.aibot.save_history()
-        self.generating = False
 
     @app_commands.command(name="chat", description="deekseep or something else that you can chat with")
     async def chat(self, interaction: Interaction, *, msg: str):
