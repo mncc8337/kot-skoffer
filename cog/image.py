@@ -41,7 +41,7 @@ class ImageCog(GroupCog, group_name="image"):
             return None
 
     async def send_high_quality_image(self, interaction: Interaction, image: Image, name: str):
-        await asyncio.to_thread(image.save, "images/image_process/" + name + ".png", format="PNG")
+        await asyncio.to_thread(image.save, "images/" + name + ".png", format="PNG")
 
         buffer, _ = await asyncio.to_thread(image_process.reduce_size, image)
         discord_file = discord.File(fp=buffer, filename=name + ".png")
