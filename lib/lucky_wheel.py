@@ -9,20 +9,19 @@ class LuckyWheel(data_loader.Data):
         super().__init__(*args)
 
     async def spin(self, interaction: Interaction):
-        local_data = self.get_data(
-            interaction,
-            {"user": {}, "item": {}},
-        )
+        local_data = self.get_data(interaction)
         if len(local_data["item"].keys()) < 2:
             await interaction.response.send_message("not enough item to spin")
             return
 
         item = random.choice(list(local_data["item"].keys()))
 
+        usr_id_str = str(interaction.user.id)
+
         if str(interaction.user.id) in local_data["user"].keys():
-            local_data["user"][str(interaction.user.id)]["point"] += local_data["item"][item]
+            local_data["user"][usr_id_str]["point"] += local_data["item"][item]
         else:
-            local_data["user"][str(interaction.user.id)] = {
+            local_data["user"][usr_id_str] = {
                 "name": interaction.user.name,
                 "point": local_data["item"][item],
             }
@@ -30,24 +29,15 @@ class LuckyWheel(data_loader.Data):
         await interaction.response.send_message(f"{interaction.user.mention} got {item}, value {local_data["item"][item]} points")
 
     def add(self, key: str, val: int, interaction: Interaction):
-        local_data = self.get_data(
-            interaction,
-            {"user": {}, "item": {}},
-        )
+        local_data = self.get_data(interaction)
         local_data["item"][key] = val
 
     def remove(self, key: str, interaction: Interaction):
-        local_data = self.get_data(
-            interaction,
-            {"user": {}, "item": {}},
-        )
+        local_data = self.get_data(interaction)
         local_data["item"].pop(key)
 
     async def list(self, interaction: Interaction):
-        local_data = self.get_data(
-            interaction,
-            {"user": {}, "item": {}},
-        )
+        local_data = self.get_data(interaction)
         msg = ""
 
         for item in local_data["item"].keys():
@@ -59,21 +49,18 @@ class LuckyWheel(data_loader.Data):
             await interaction.response.send_message("no item")
 
     async def user(self, interaction: Interaction):
-        local_data = self.get_data(
-            interaction,
-            {"user": {}, "item": {}},
-        )
-        l = []
+        local_data = self.get_data(interaction)
+        items = []
         for user in local_data["user"].keys():
-            l.append((
+            items.append((
                 local_data["user"][user]["point"],
                 local_data["user"][user]["name"]
             ))
-        l.sort()
+        items.sort()
 
         msg = ""
 
-        for pair in l:
+        for pair in items:
             msg += f"{pair[1]}: {pair[0]}\n"
 
         if msg != "":

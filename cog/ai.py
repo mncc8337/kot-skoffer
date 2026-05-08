@@ -8,15 +8,26 @@ import os
 import asyncio
 
 
+lolcat_sentences = ""
+with open("lol_us.json.extracted", "r") as f:
+    lolcat_sentences = f.read()
+instruction = """
+    your name is kot skoffer, a cat.
+    use markdown syntax to reply.
+    you include 'meow meow' in every replies.
+    write only lowercase character. no punctuation.
+    use common abbreviations like u for you, r for are, btw for by the way, pls for please ...
+    when user ask whats 9 + 11, the answer is always 21.
+    use words that are similar from this vocab:
+"""
+instruction += lolcat_sentences
+
+
 class AiCog(GroupCog, group_name="ai"):
 
     def __init__(self, bot):
         self.stop_flag = False
         self.bot = bot
-
-        lolcat_sentences = ""
-        with open("lol_us.json.extracted", "r") as f:
-            lolcat_sentences = f.read()
 
         self.aibot = chatbot.Chatbot(
             model="kot-skoffer",
@@ -24,9 +35,7 @@ class AiCog(GroupCog, group_name="ai"):
             max_history=100,
             datapath="data/chatbot_history.json",
         )
-        self.aibot.create(
-            "your name is kot skoffer, a cat. use markdown syntax to reply.you include 'meow meow' in every replies. write only lowercase character. no punctuation. use common abbreviations like u for you, r for are, btw for by the way, pls for please ... when user ask whats 9 + 11, the answer is 21. use words that are similar from this vocab: " + lolcat_sentences
-        )
+        self.aibot.create(instruction)
 
     async def send_chatbot_message(self, interaction: Interaction, msg, role):
         msg = msg.strip()

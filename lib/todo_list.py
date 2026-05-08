@@ -9,11 +9,11 @@ class TODOList(data_loader.Data):
         super().__init__(*args)
 
     def valid_item(self, id, interaction: Interaction):
-        local_data = self.get_data(interaction, [])
+        local_data = self.get_data(interaction)
         return id < len(local_data)
 
     def add(self, content, interaction: Interaction):
-        local_data = self.get_data(interaction, [])
+        local_data = self.get_data(interaction)
         local_data.append({
             "content": content,
             "checked": False,
@@ -21,15 +21,15 @@ class TODOList(data_loader.Data):
         })
 
     def remove(self, id, interaction: Interaction):
-        local_data = self.get_data(interaction, [])
+        local_data = self.get_data(interaction)
         local_data.pop(id)
 
     def toggle(self, id, interaction: Interaction):
-        local_data = self.get_data(interaction, [])
+        local_data = self.get_data(interaction)
         local_data[id]["checked"] = not local_data[id]["checked"]
 
     def text(self, interaction: Interaction):
-        local_data = self.get_data(interaction, [])
+        local_data = self.get_data(interaction)
         content = "```\n"
         if len(local_data) == 0:
             content = "nothing to show"

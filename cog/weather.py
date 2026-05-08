@@ -201,7 +201,6 @@ class WeatherCog(GroupCog, group_name="weather"):
             await interaction.response.send_message(f"```\nerror when adding variables\n{e}\n```", ephemeral=True)
             return
 
-
         await interaction.response.defer()
 
         data = await asyncio.to_thread(api.request)
