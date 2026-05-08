@@ -46,7 +46,7 @@ class ImageCog(GroupCog, group_name="image"):
         buffer, _ = await asyncio.to_thread(image_process.reduce_size, image)
         discord_file = discord.File(fp=buffer, filename=name + ".png")
 
-        image_url = await asyncio.to_thread(self.post_to_host_service, "images/image_process/" + name + ".png")
+        image_url = await asyncio.to_thread(self.post_to_host_service, "images/" + name + ".png")
         if image_url:
             msg = f"""{interaction.user.mention} done processing. sent with full quality via {HOST_SERVICE} and low quality (maybe downscaled) via attachment.
 [full image at {HOST_SERVICE}]({image_url}).
