@@ -10,16 +10,21 @@ class LuckyWheel(data_loader.Data):
 
     async def spin(self, interaction: Interaction):
         local_data = self.get_data(interaction)
-        if len(local_data["item"].keys()) < 2:
-            await interaction.response.send_message("not enough item to spin")
+
+        items_dict = local_data["item"]
+        if len(items_dict.keys()) < 2:
+            await interaction.response.send_message("not enough items to spin")
             return
 
-        item = random.choice(list(local_data["item"].keys()))
+        item_names = list(items_dict.keys())
+        weights = [v[1] for v in items_dict.values()]
+
+        item = random.choices(item_names, weights=weights, k=1)[0]
 
         usr_id_str = str(interaction.user.id)
-        value = local_data["item"][item][0]
+        value = items_dict[item][0]
 
-        if str(interaction.user.id) in local_data["user"].keys():
+        if usr_id_str in local_data["user"]:
             local_data["user"][usr_id_str]["point"] += value
         else:
             local_data["user"][usr_id_str] = {
@@ -27,7 +32,9 @@ class LuckyWheel(data_loader.Data):
                 "point": value,
             }
 
-        await interaction.response.send_message(f"{interaction.user.mention} got {item}, value {value} points")
+        await interaction.response.send_message(
+            f"{interaction.user.mention} got **{item}**, value **{value}** points"
+        )
 
     def add(self, key: str, val: int, weight: int, interaction: Interaction):
         local_data = self.get_data(interaction)
