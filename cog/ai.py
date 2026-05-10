@@ -5,26 +5,46 @@ from discord.ext.commands import GroupCog
 import lib.chatbot as chatbot
 import json
 import os
-import asyncio
+import random
+from typing import Optional
 
 
-lolcat_sentences = ""
-with open("lol_us.json.extracted", "r") as f:
-    lolcat_sentences = f.read()
-instruction = """
-    your name is kot skoffer, a cat.
-    use markdown syntax to reply.
-    you include 'meow meow' in every replies.
-    write only lowercase character. no punctuation.
-    use common abbreviations like u for you, r for are, btw for by the way, pls for please ...
+def generate_instruction():
+    return ""
+
+    # currently this instruction is shit
+    # and would make dumb model repeats on the reasoning part
+    # will fix it later
+    # prompt engineering is real guys
+
+    lolcat_content = {}
+    with open("lol_us.json", "r") as f:
+        lolcat_content = json.load(f)
+    lolcat_sentences = ""
+    sentence_length = 64
+    while len(lolcat_sentences) < sentence_length:
+        for key in lolcat_content.keys():
+            if random.randint(0, 100) < 10:
+                lolcat_sentences += lolcat_content[key] + ", "
+            if len(lolcat_sentences) >= sentence_length:
+                break
+    return f"""
+    DO NOT OVERTHINKING.
+    your name is kot skoffer.
+    write only lowercase character.
+    use common abbreviations like u for you, r for are, btw for by the way, pls for please
     when user ask whats 9 + 11, the answer is always 21.
-    use words that are similar from this vocab:
-"""
-instruction += lolcat_sentences
+    here is an example vocabulary: {lolcat_sentences}
+    """
+
+
+THINK_OPTIONS = [
+    "off",
+    "low", "medium", "high",
+]
 
 
 class AiCog(GroupCog, group_name="ai"):
-
     def __init__(self, bot):
         self.stop_flag = False
         self.bot = bot
@@ -35,80 +55,184 @@ class AiCog(GroupCog, group_name="ai"):
             max_history=100,
             datapath="data/chatbot_history.json",
         )
-        self.aibot.create(instruction)
 
-    async def send_chatbot_message(self, interaction: Interaction, msg, role):
+    async def cog_load(self):
+        print(f"kot: checking if {self.aibot.model} exists...")
+        if not await self.aibot.exist():
+            print(f"kot: creating model {self.aibot.model}...")
+            await self.aibot.create(generate_instruction())
+
+    async def send_chatbot_message(
+        self,
+        interaction: Interaction,
+        msg: str,
+        role: str,
+        think: str
+    ):
         msg = msg.strip()
-        if len(msg) == 0:
+        if not msg:
+            return
+
+        stream = await self.aibot.chat(msg, role, think, interaction)
+        if role == "system":
+            await interaction.response.send_message("system instruction sent")
             return
 
         await interaction.response.defer()
 
-        content = ""
-        content_buffer = ""
-        followup = None
-        queue = asyncio.Queue()
+        full_content = ""
+        full_thought = ""
+        update_buffer = 0
 
-        def stream_worker(loop):
-            stream = self.aibot.chat(msg, 1500, role, interaction)
-            for chunk in stream:
-                if self.stop_flag:
-                    self.stop_flag = False
-                    break
-                asyncio.run_coroutine_threadsafe(queue.put(chunk), loop)
-            asyncio.run_coroutine_threadsafe(queue.put(None), loop)
+        thought_msg = None
+        content_msgs = []
 
-        asyncio.create_task(asyncio.to_thread(
-            stream_worker,
-            asyncio.get_running_loop()
-        ))
+        def get_semantic_chunks(text, max_limit=1900):
+            chunks = []
+            paragraphs = text.split('\n\n')
+            current_chunk = ""
 
-        def process_overflow(msg):
-            if len(msg) > 2000:
-                stop_msg = "\ntexting limit reached, stop generating"
-                msg = msg[0:(2000 - len(stop_msg))] + stop_msg
-            return msg
+            for p in paragraphs:
+                if len(current_chunk) + len(p) + 2 > max_limit and current_chunk:
+                    chunks.append(current_chunk.strip())
+                    current_chunk = ""
 
-        while not self.stop_flag:
-            chunk = await queue.get()
-            if chunk is None:
+                if len(p) > max_limit:
+                    sentences = p.replace('. ', '. <SPLIT>').split('<SPLIT>')
+                    for s in sentences:
+                        if len(current_chunk) + len(s) > max_limit and current_chunk:
+                            chunks.append(current_chunk.strip())
+                            current_chunk = ""
+
+                        if len(s) > max_limit:
+                            for i in range(0, len(s), max_limit):
+                                if len(current_chunk) + len(s[i:i+max_limit]) > max_limit and current_chunk:
+                                    chunks.append(current_chunk.strip())
+                                    current_chunk = ""
+                                current_chunk += s[i:i+max_limit]
+                        else:
+                            current_chunk += s
+                else:
+                    current_chunk += p + "\n\n"
+
+            if current_chunk.strip():
+                chunks.append(current_chunk.strip())
+
+            return chunks if chunks else [""]
+
+        async for chunk in stream:
+            if self.stop_flag:
+                self.stop_flag = False
                 break
 
-            content_buffer += chunk['message']['content']
+            msg_data = chunk.get("message", {})
+            t_chunk = msg_data.get("thinking", "") or ""
+            c_chunk = msg_data.get("content", "")
 
-            if len(content_buffer) > 20 or chunk.get('done', False):
-                content += content_buffer
-                content_buffer = ""
-                if followup is None:
-                    followup = await interaction.followup.send(
-                        content=process_overflow(content)
-                    )
-                else:
-                    await interaction.followup.edit_message(
-                        message_id=followup.id,
-                        content=process_overflow(content)
-                    )
+            full_thought += t_chunk
+            full_content += c_chunk
 
-        self.aibot.add_bot_response(content, interaction)
-        self.aibot.save_history()
+            update_buffer += len(t_chunk) + len(c_chunk)
 
-    @app_commands.command(name="chat", description="deekseep or something else that you can chat with")
-    async def chat(self, interaction: Interaction, *, msg: str):
-        await self.send_chatbot_message(interaction, msg, "user")
+            if update_buffer > 20 or chunk.get("done", False):
+                update_buffer = 0
+
+                if full_thought and not full_content:
+                    display_thought = full_thought.strip()
+
+                    if len(display_thought) > 1850:
+                        tail = display_thought[-1800:]
+                        cut_index = tail.find('\n')
+                        if cut_index != -1:
+                            tail = tail[cut_index+1:]
+                        display_thought = "... [earlier thoughts truncated] ...\n" + tail
+
+                    quoted = "\n".join([f"> {line}" for line in display_thought.split('\n')])
+                    formatted_msg = f"**SILENCE, the kot is thinking**\n{quoted}"[:2000]
+
+                    if thought_msg is None:
+                        thought_msg = await interaction.followup.send(content=formatted_msg)
+                    else:
+                        await interaction.followup.edit_message(
+                            message_id=thought_msg.id,
+                            content=formatted_msg
+                        )
+
+                elif full_content:
+                    if thought_msg and not content_msgs:
+                        display_thought = full_thought.strip()
+
+                        if len(display_thought) > 1850:
+                            tail = display_thought[-1800:]
+                            cut_index = tail.find('\n')
+                            if cut_index != -1:
+                                tail = tail[cut_index+1:]
+                            display_thought = "... [earlier thoughts truncated] ...\n" + tail
+
+                        quoted = "\n".join([f"> {line}" for line in display_thought.split('\n')])
+                        final_thought = f"**kot done think**\n{quoted}"[:2000]
+                        await interaction.followup.edit_message(
+                            message_id=thought_msg.id,
+                            content=final_thought
+                        )
+
+                    display_content = full_content.strip()
+                    if display_content:
+                        chunks = get_semantic_chunks(display_content)
+
+                        if len(chunks) > len(content_msgs):
+                            if content_msgs:
+                                await interaction.followup.edit_message(
+                                    message_id=content_msgs[-1].id,
+                                    content=chunks[len(content_msgs)-1]
+                                )
+                            for new_text in chunks[len(content_msgs):]:
+                                new_msg = await interaction.followup.send(content=new_text)
+                                content_msgs.append(new_msg)
+                        else:
+                            if content_msgs:
+                                await interaction.followup.edit_message(
+                                    message_id=content_msgs[-1].id,
+                                    content=chunks[-1]
+                                )
+
+        if not full_content.strip() and not full_thought.strip():
+            await interaction.followup.send("*(the cat is silent meow meow)*")
+
+        if full_content.strip():
+            self.aibot.add_bot_response(full_content, interaction)
+            self.aibot.save_history()
+
+    async def autocomplete_think_option(self, interaction: Interaction, current: str):
+        return [
+            app_commands.Choice(name=code, value=code)
+            for code in THINK_OPTIONS if code.startswith(current.lower())
+        ][:25]
+
+    @app_commands.command(name="chat", description="deekseep or something else you can chat with")
+    @app_commands.describe(think="Set how hard the bot thinks. default: off")
+    @app_commands.autocomplete(think=autocomplete_think_option)
+    async def chat(
+        self,
+        interaction: Interaction,
+        msg: str,
+        think: Optional[str] = "off"
+    ):
+        await self.send_chatbot_message(interaction, msg, "user", think)
 
     @app_commands.command(name="sys", description="send system message (instruction) to chatbot")
-    async def sys(self, interaction: Interaction, *, msg: str):
-        await self.send_chatbot_message(interaction, msg, "system")
+    async def sys(self, interaction: Interaction, msg: str):
+        await self.send_chatbot_message(interaction, msg, "system", False)
 
-    @app_commands.command(name="stop", description="stop current chatbot response")
+    @app_commands.command(name="stop", description="stop current response")
     async def stop(self, interaction: Interaction):
         self.stop_flag = True
         await interaction.response.send_message("stop signal sent")
 
-    @app_commands.command(name="info", description="info about chatbot")
+    @app_commands.command(name="info", description="info about the chatbot")
     async def msginfo(self, interaction: Interaction):
         await interaction.response.send_message(
-            content="```\n" + json.dumps(self.aibot.get_info(), indent=4) + "\n```",
+            content="```\n" + json.dumps(await self.aibot.get_info(), indent=4) + "\n```",
             ephemeral=True,
         )
 

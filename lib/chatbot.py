@@ -1,4 +1,4 @@
-import ollama
+from ollama import AsyncClient
 from lib.data_loader import Data
 from discord import Interaction
 
@@ -9,8 +9,9 @@ class Chatbot:
         self.basemodel = basemodel
         self.max_history = max_history
         self.data = Data(datapath)
+        self.client = AsyncClient()
 
-    def _history_slide(self, chat_data: dict):
+    def _history_slide(self, chat_data: list):
         if self.max_history < 0:
             return
         while len(chat_data) > self.max_history:
@@ -19,34 +20,49 @@ class Chatbot:
     def save_history(self):
         self.data.save()
 
-    def exist(self):
-        models = ollama.list()['models']
-
+    async def exist(self):
+        response = await self.client.list()
+        models = response.get('models', [])
         for model in models:
-            if model.model == self.model + ":latest":
+            if model.model == f"{self.model}:latest":
                 return True
         return False
 
-    def create(self, instruction):
-        ollama.create(
+    async def create(self, instruction):
+        await self.client.create(
             model=self.model,
             from_=self.basemodel,
             system=instruction,
         )
 
-    def chat(self, content: str, reply_limit: int, role: int, interaction: Interaction):
+    async def chat(
+        self,
+        content: str,
+        role: str,
+        think: str,
+        interaction: Interaction
+    ):
         chat_data = self.data.get_data(interaction, [])
         chat_data.append({
-            'role': role,
-            'content': content
+            "role": role,
+            "content": content
         })
         self._history_slide(chat_data)
 
-        return ollama.chat(
+        if role == "system":
+            return
+
+        ollama_think = "low"
+        if think == "off":
+            ollama_think = False
+        elif think in ["low", "medium", "high"]:
+            ollama_think = think
+
+        return await self.client.chat(
             model=self.model,
             messages=chat_data,
+            think=ollama_think,
             options={
-                "num_predict": int(reply_limit / 4),
                 "temperature": 1.3,
             },
             stream=True,
@@ -64,8 +80,8 @@ class Chatbot:
         chat_data = self.data.get_data(interaction, [])
         chat_data.clear()
 
-    def get_info(self):
-        info = ollama.show(self.model)
+    async def get_info(self):
+        info = await self.client.show(self.model)
         ret = {
             "name": self.model,
             "modified_at": str(info.modified_at),

@@ -1,6 +1,6 @@
 from PIL import Image, ImageDraw, ImageFont
 
-width, height = 50, 50
+width, height = 350, 50
 image = Image.new('RGB', (width, height), color='white')
 
 draw = ImageDraw.Draw(image)

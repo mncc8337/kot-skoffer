@@ -38,7 +38,11 @@ class RandomCog(GroupCog, group_name="random"):
         name="roll",
         description="get some random number in specified range"
     )
-    @app_commands.describe(lbound="lower bound. default: 1", hbound="higher bound. default: 6", times="how many rolls. default: 1",)
+    @app_commands.describe(
+        lbound="lower bound. default: 1",
+        hbound="higher bound. default: 6",
+        times="how many rolls. default: 1",
+    )
     async def roll(
         self,
         interaction: Interaction,
