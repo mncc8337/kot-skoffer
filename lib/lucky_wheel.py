@@ -9,7 +9,7 @@ class LuckyWheel(data_loader.Data):
         super().__init__(*args)
 
     async def spin(self, interaction: Interaction):
-        local_data = self.get_data(interaction)
+        local_data = self.get_data(interaction, {"user": {}, "item": {}})
 
         items_dict = local_data["item"]
         if len(items_dict.keys()) < 2:
@@ -37,23 +37,23 @@ class LuckyWheel(data_loader.Data):
         )
 
     def add(self, key: str, val: int, weight: int, interaction: Interaction):
-        local_data = self.get_data(interaction)
+        local_data = self.get_data(interaction, {"user": {}, "item": {}})
         local_data["item"][key] = [val, weight]
 
     def remove(self, key: str, interaction: Interaction):
-        local_data = self.get_data(interaction)
+        local_data = self.get_data(interaction, {"user": {}, "item": {}})
         local_data["item"].pop(key)
 
     def set_weight(self, key: str, weight: int, interaction: Interaction):
-        local_data = self.get_data(interaction)
+        local_data = self.get_data(interaction, {"user": {}, "item": {}})
         local_data["item"][key][1] = weight
 
     def set_value(self, key: str, value: int, interaction: Interaction):
-        local_data = self.get_data(interaction)
+        local_data = self.get_data(interaction, {"user": {}, "item": {}})
         local_data["item"][key][0] = value
 
     async def list(self, interaction: Interaction):
-        local_data = self.get_data(interaction)
+        local_data = self.get_data(interaction, {"user": {}, "item": {}})
 
         total_weight = 0
         expected_value = 0
@@ -93,7 +93,7 @@ class LuckyWheel(data_loader.Data):
             await interaction.response.send_message(embed=embed)
 
     async def user(self, interaction: Interaction):
-        local_data = self.get_data(interaction)
+        local_data = self.get_data(interaction, {"user": {}, "item": {}})
         items = []
         for user in local_data["user"].keys():
             items.append((

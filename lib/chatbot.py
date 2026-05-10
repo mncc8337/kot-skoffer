@@ -35,7 +35,7 @@ class Chatbot:
         )
 
     def chat(self, content: str, reply_limit: int, role: int, interaction: Interaction):
-        chat_data = self.data.get_data(interaction)
+        chat_data = self.data.get_data(interaction, [])
         chat_data.append({
             'role': role,
             'content': content
@@ -53,7 +53,7 @@ class Chatbot:
         )
 
     def add_bot_response(self, content, interaction: Interaction):
-        chat_data = self.data.get_data(interaction)
+        chat_data = self.data.get_data(interaction, [])
         chat_data.append({
             "role": "assistant",
             "content": content
@@ -61,7 +61,7 @@ class Chatbot:
         self._history_slide(chat_data)
 
     def clear_history(self, interaction: Interaction):
-        chat_data = self.data.get_data(interaction)
+        chat_data = self.data.get_data(interaction, [])
         chat_data.clear()
 
     def get_info(self):
