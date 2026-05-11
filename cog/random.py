@@ -9,6 +9,11 @@ import random
 import requests
 import lib.random_name as random_name
 
+from datetime import datetime, timezone
+from html2text import html2text
+import asyncio
+
+
 LANGS = [
     "random",
     "aa", "ab", "ae", "af", "ak", "am", "an", "ar", "as", "av", "ay", "az",
@@ -115,10 +120,6 @@ class RandomCog(GroupCog, group_name="random"):
         interaction: Interaction,
         lang: Optional[str] = "en",
     ):
-        from datetime import datetime, timezone
-        from html2text import html2text
-        import asyncio
-
         if lang == "random":
             lang = random.choice(LANGS)
         elif lang not in LANGS:
@@ -131,7 +132,13 @@ class RandomCog(GroupCog, group_name="random"):
         await interaction.response.defer()
 
         try:
-            page = await asyncio.to_thread(requests.get, f"https://{lang}.wikipedia.org/api/rest_v1/page/random/summary")
+            page = await asyncio.to_thread(
+                requests.get,
+                f"https://{lang}.wikipedia.org/api/rest_v1/page/random/summary",
+                headers={"User-Agent": "kot-skoffer"},
+                timeout=10
+            )
+
             page = page.json()
         except Exception as e:
             await interaction.followup.send(content="failed to get random page. " + str(e))
@@ -154,6 +161,9 @@ class RandomCog(GroupCog, group_name="random"):
 
         embed.add_field(name="brief", value=html2text(page["extract_html"]))
         if page.get("coordinates"):
-            embed.add_field(name="coordinates", value=f"{page["coordinates"]["lat"]}, {page["coordinates"]["lon"]}")
+            embed.add_field(
+                name="coordinates",
+                value=f"{page["coordinates"]["lat"]}, {page["coordinates"]["lon"]}"
+            )
 
         await interaction.followup.send(embed=embed)

@@ -82,8 +82,30 @@ class Chatbot:
 
     async def get_info(self):
         info = await self.client.show(self.model)
+
         ret = {
             "name": self.model,
+            "base_model": self.basemodel,
             "modified_at": str(info.modified_at),
         }
-        return ret | vars(info.details)
+
+        raw_details = vars(info.details)
+        clean_details = {
+            key: value for key, value in raw_details.items() if value
+        }
+
+        if not clean_details.get("parameter_size"):
+            try:
+                base_info = await self.client.show(self.basemodel)
+                base_details = vars(base_info.details)
+
+                fallback_details = {
+                    key: value for key, value in base_details.items() if value
+                }
+
+                clean_details = fallback_details | clean_details
+            except Exception:
+
+                pass
+
+        return ret | clean_details

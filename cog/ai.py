@@ -10,13 +10,6 @@ from typing import Optional
 
 
 def generate_instruction():
-    return ""
-
-    # currently this instruction is shit
-    # and would make dumb model repeats on the reasoning part
-    # will fix it later
-    # prompt engineering is real guys
-
     lolcat_content = {}
     with open("lol_us.json", "r") as f:
         lolcat_content = json.load(f)
@@ -29,7 +22,6 @@ def generate_instruction():
             if len(lolcat_sentences) >= sentence_length:
                 break
     return f"""
-    DO NOT OVERTHINKING.
     your name is kot skoffer.
     write only lowercase character.
     use common abbreviations like u for you, r for are, btw for by the way, pls for please
