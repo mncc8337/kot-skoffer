@@ -10,7 +10,6 @@ import requests
 import lib.random_name as random_name
 
 from datetime import datetime, timezone
-from html2text import html2text
 import asyncio
 
 
@@ -106,6 +105,22 @@ class RandomCog(GroupCog, group_name="random"):
         file = discord.File(os.path.join(pwd, item))
         await interaction.response.send_message(file=file)
 
+    @app_commands.command(name="catfact", description="get random cat fact")
+    async def catfact(self, interaction: Interaction):
+        fact = ""
+        try:
+            page = await asyncio.to_thread(
+                requests.get,
+                "https://catfact.ninja/fact",
+                headers={"User-Agent": "kot-skoffer"},
+                timeout=10
+            )
+            res = page.json()
+            fact = res.get("fact")
+        except Exception as e:
+            fact = f"Could not fetch cat fact: {e}"
+        await interaction.response.send_message(fact)
+
     async def autocomplete_lang(self, interaction: Interaction, current: str):
         return [
             app_commands.Choice(name=code, value=code)
@@ -159,7 +174,7 @@ class RandomCog(GroupCog, group_name="random"):
         if page.get("originalimage"):
             embed.set_image(url=page["originalimage"]["source"])
 
-        embed.add_field(name="brief", value=html2text(page["extract_html"]))
+        embed.add_field(name="brief", value=page["extract"])
         if page.get("coordinates"):
             embed.add_field(
                 name="coordinates",

@@ -10,6 +10,8 @@ from typing import Optional
 
 
 def generate_instruction():
+    return ""
+
     lolcat_content = {}
     with open("lol_us.json", "r") as f:
         lolcat_content = json.load(f)
@@ -23,6 +25,7 @@ def generate_instruction():
                 break
     return f"""
     your name is kot skoffer.
+    use discord's markdown flavor.
     write only lowercase character.
     use common abbreviations like u for you, r for are, btw for by the way, pls for please
     when user ask whats 9 + 11, the answer is always 21.
@@ -59,18 +62,25 @@ class AiCog(GroupCog, group_name="ai"):
         interaction: Interaction,
         msg: str,
         role: str,
-        think: str
+        think: str,
+        no_reply: bool,
+        continuation: bool
     ):
         msg = msg.strip()
-        if not msg:
+        if not msg and not continuation:
             return
 
-        stream = await self.aibot.chat(msg, role, think, interaction)
-        if role == "system":
-            await interaction.response.send_message("system instruction sent")
-            return
+        stream = await self.aibot.chat(msg, role, think, no_reply, interaction)
 
-        await interaction.response.defer()
+        if not continuation:
+            if no_reply:
+                if role == "system":
+                    await interaction.response.send_message("system instruction sent")
+                else:
+                    await interaction.response.send_message("message sent")
+                return
+
+            await interaction.response.defer()
 
         full_content = ""
         full_thought = ""
@@ -78,6 +88,10 @@ class AiCog(GroupCog, group_name="ai"):
 
         thought_msg = None
         content_msgs = []
+
+        tool_call = ""
+        tool_output = None
+        tool_name = None
 
         def get_semantic_chunks(text, max_limit=1900):
             chunks = []
@@ -118,13 +132,27 @@ class AiCog(GroupCog, group_name="ai"):
                 break
 
             msg_data = chunk.get("message", {})
-            t_chunk = msg_data.get("thinking", "") or ""
-            c_chunk = msg_data.get("content", "")
+            think_chunk = msg_data.get("thinking", "") or ""
+            content_chunk = msg_data.get("content", "") or ""
+            tool_chunk = msg_data.get("tool_calls", {}) or []
 
-            full_thought += t_chunk
-            full_content += c_chunk
+            if tool_chunk:
+                tool_call = msg_data
+                for tool in tool_chunk:
+                    if function_to_call := self.aibot.available_tools.get(tool.function.name):
+                        print("kot: calling function:", tool.function.name, "with arguments:", tool.function.arguments)
+                        output = function_to_call(**tool.function.arguments)
+                        print("> function output:", output, '\n')
 
-            update_buffer += len(t_chunk) + len(c_chunk)
+                        tool_output = str(output)
+                        tool_name = tool.function.name
+                    else:
+                        print("Function", tool.function.name, "not found")
+
+            full_thought += think_chunk
+            full_content += content_chunk
+
+            update_buffer += len(think_chunk) + len(content_chunk)
 
             if update_buffer > 20 or chunk.get("done", False):
                 update_buffer = 0
@@ -140,7 +168,10 @@ class AiCog(GroupCog, group_name="ai"):
                         display_thought = "... [earlier thoughts truncated] ...\n" + tail
 
                     quoted = "\n".join([f"> {line}" for line in display_thought.split('\n')])
-                    formatted_msg = f"**SILENCE, the kot is thinking**\n{quoted}"[:2000]
+                    if not continuation:
+                        formatted_msg = f"**SILENCE, the kot is thinking**\n{quoted}"[:2000]
+                    else:
+                        formatted_msg = f"**SILENCE, the kot is still thinking**\n{quoted}"[:2000]
 
                     if thought_msg is None:
                         thought_msg = await interaction.followup.send(content=formatted_msg)
@@ -188,12 +219,17 @@ class AiCog(GroupCog, group_name="ai"):
                                     content=chunks[-1]
                                 )
 
-        if not full_content.strip() and not full_thought.strip():
+        if not full_content.strip() and not full_thought.strip() and not tool_call:
             await interaction.followup.send("*(the cat is silent meow meow)*")
 
-        if full_content.strip():
+        if full_content.strip() or tool_call:
             self.aibot.add_bot_response(full_content, interaction)
             self.aibot.save_history()
+
+        if tool_call:
+            self.aibot.add_response(tool_call, interaction)
+            self.aibot.add_tool_response(tool_output, tool_name, interaction)
+            await self.send_chatbot_message(interaction, "", "", think, False, True)
 
     async def autocomplete_think_option(self, interaction: Interaction, current: str):
         return [
@@ -203,18 +239,28 @@ class AiCog(GroupCog, group_name="ai"):
 
     @app_commands.command(name="chat", description="deekseep or something else you can chat with")
     @app_commands.describe(think="Set how hard the bot thinks. default: off")
+    @app_commands.describe(no_reply="Tell the bot to reply to you immediatly or not. default: False")
     @app_commands.autocomplete(think=autocomplete_think_option)
     async def chat(
         self,
         interaction: Interaction,
         msg: str,
-        think: Optional[str] = "off"
+        think: Optional[str] = "off",
+        no_reply: Optional[bool] = False
     ):
-        await self.send_chatbot_message(interaction, msg, "user", think)
+        await self.send_chatbot_message(interaction, msg, "user", think, no_reply, False)
 
     @app_commands.command(name="sys", description="send system message (instruction) to chatbot")
-    async def sys(self, interaction: Interaction, msg: str):
-        await self.send_chatbot_message(interaction, msg, "system", False)
+    @app_commands.describe(think="Set how hard the bot thinks. default: off")
+    @app_commands.describe(no_reply="Tell the bot to reply to you immediatly or not. default: False")
+    async def sys(
+        self,
+        interaction: Interaction,
+        msg: str,
+        think: Optional[str] = "off",
+        no_reply: Optional[bool] = False
+    ):
+        await self.send_chatbot_message(interaction, msg, "system", think, no_reply, False)
 
     @app_commands.command(name="stop", description="stop current response")
     async def stop(self, interaction: Interaction):
