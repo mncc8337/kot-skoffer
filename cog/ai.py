@@ -26,6 +26,7 @@ def generate_instruction():
     return f"""
     your name is kot skoffer.
     use discord's markdown flavor.
+    if the user asks about anything that could have changed recently, or asks for factuak verification, you MUST execute a `web_search` before your final response.
     write only lowercase character.
     use common abbreviations like u for you, r for are, btw for by the way, pls for please
     when user ask whats 9 + 11, the answer is always 21.
@@ -147,7 +148,6 @@ class AiCog(GroupCog, group_name="ai"):
                             output = await function_to_call(**tool.function.arguments)
                         else:
                             output = function_to_call(**tool.function.arguments)
-                        print("> function output:", output, '\n')
 
                         tool_output = str(output)
                         tool_name = tool.function.name
