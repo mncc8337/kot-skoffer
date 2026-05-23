@@ -20,13 +20,17 @@ def serialize_message(message) -> dict:
 
 
 class Chatbot:
-    def __init__(self, datapath, model, basemodel, max_history=-1):
+    def __init__(self, datapath, model, basemodel, ollama_api_key, max_history=-1):
         self.model = model
         self.basemodel = basemodel
         self.max_history = max_history
         self.data = Data(datapath)
-        self.client = AsyncClient()
-        self.available_tools = bot_tools.AVAILABLE_TOOLS
+        self.client = AsyncClient(
+            headers={
+                "Authorization": f"Bearer {ollama_api_key}"
+            }
+        )
+        bot_tools.add_ollama_web_tools(self.client)
 
     def _history_slide(self, chat_data: list):
         if self.max_history < 0:
@@ -82,7 +86,7 @@ class Chatbot:
             options={
                 "temperature": 1.3,
             },
-            tools=bot_tools.TOOLS,
+            tools=bot_tools.AVAILABLE_TOOLS,
             stream=True,
         )
 

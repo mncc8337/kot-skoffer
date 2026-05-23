@@ -3,15 +3,15 @@ from discord import Interaction
 from discord.ext.commands import GroupCog
 
 import lib.chatbot as chatbot
+from lib.bot_tools import TOOLS_NAME_MAP
 import json
 import os
 import random
 from typing import Optional
+import inspect
 
 
 def generate_instruction():
-    return ""
-
     lolcat_content = {}
     with open("lol_us.json", "r") as f:
         lolcat_content = json.load(f)
@@ -47,6 +47,7 @@ class AiCog(GroupCog, group_name="ai"):
         self.aibot = chatbot.Chatbot(
             model="kot-skoffer",
             basemodel=os.getenv("LLM_MODEL"),
+            ollama_api_key=os.getenv("OLLAMA_API_KEY"),
             max_history=100,
             datapath="data/chatbot_history.json",
         )
@@ -139,9 +140,13 @@ class AiCog(GroupCog, group_name="ai"):
             if tool_chunk:
                 tool_call = msg_data
                 for tool in tool_chunk:
-                    if function_to_call := self.aibot.available_tools.get(tool.function.name):
+                    if function_to_call := TOOLS_NAME_MAP.get(tool.function.name):
                         print("kot: calling function:", tool.function.name, "with arguments:", tool.function.arguments)
-                        output = function_to_call(**tool.function.arguments)
+                        output = ""
+                        if inspect.iscoroutinefunction(function_to_call):
+                            output = await function_to_call(**tool.function.arguments)
+                        else:
+                            output = function_to_call(**tool.function.arguments)
                         print("> function output:", output, '\n')
 
                         tool_output = str(output)

@@ -9,8 +9,8 @@ import requests
 import cog
 
 load_dotenv()
-token = os.getenv("TOKEN")
-if not token:
+discord_token = os.getenv("DISCORD_TOKEN")
+if not discord_token:
     print("TOKEN not set!")
     exit(1)
 elif not os.getenv("LLM_MODEL"):
@@ -79,4 +79,4 @@ async def numberfact(interaction: Interaction, number: int):
         await interaction.response.send_message(response.text)
 
 
-bot.run(token)
+bot.run(discord_token)

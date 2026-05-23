@@ -1,56 +1,9 @@
-from ddgs import DDGS
-from bs4 import BeautifulSoup
 import requests
-import json
 import datetime
 import wikipedia
 import urllib.parse
-
-
-def web_search(query: str, max_results: int = 3) -> str:
-    try:
-        results = DDGS().text(query, max_results=max_results)
-        return json.dumps(list(results))
-    except Exception as e:
-        return f"Search failed: {e}"
-
-
-def web_fetch(url: str) -> str:
-    try:
-        headers = {"User-Agent": "kot-skoffer"}
-
-        response = requests.get(url, headers=headers, timeout=10)
-        response.raise_for_status()
-
-        soup = BeautifulSoup(response.text, "html.parser")
-
-        for element in soup(["script", "style", "noscript", "header", "footer", "nav"]):
-            element.extract()
-
-        text = soup.get_text(separator="\n", strip=True)
-
-        max_chars = 15000
-        if len(text) > max_chars:
-            text = text[:max_chars] + "\n\n...[Content truncated due to length]..."
-
-        return text
-
-    except requests.exceptions.RequestException as e:
-        return f"Failed to fetch webpage: {str(e)}"
-    except Exception as e:
-        return f"Error parsing webpage: {str(e)}"
-
-
-def search_web_image(query: str) -> str:
-    try:
-        results = list(DDGS().images(query, max_results=1))
-        if not results:
-            return f"No images found for '{query}'."
-
-        image_url = results[0].get("image")
-        return f"Found image URL: {image_url} (Tell the user this is the image they asked for!)"
-    except Exception as e:
-        return f"Failed to search for image: {e}"
+from ollama import AsyncClient
+import json
 
 
 def get_current_time(timezone_offset: int = 0) -> str:
@@ -120,20 +73,56 @@ def get_nasa_space_picture() -> str:
         return f"Failed to fetch NASA space asset: {e}"
 
 
-AVAILABLE_TOOLS = {
-    "web_search": web_search,
-    "web_fetch": web_fetch,
-    "search_web_image": search_web_image,
-    "get_current_time": get_current_time,
-    "lookup_urban_slang": lookup_urban_slang,
-    "fetch_wikipedia_summary": fetch_wikipedia_summary,
-    "get_weather": get_weather,
-    "generate_qr_code": generate_qr_code,
-    "get_nasa_space_picture": get_nasa_space_picture,
-}
-TOOLS = [AVAILABLE_TOOLS[i] for i in AVAILABLE_TOOLS.keys()]
+AVAILABLE_TOOLS = [
+    get_current_time,
+    lookup_urban_slang,
+    fetch_wikipedia_summary,
+    get_weather,
+    generate_qr_code,
+    get_nasa_space_picture,
+]
+
+TOOLS_NAME_MAP = {}
+for tool in AVAILABLE_TOOLS:
+    TOOLS_NAME_MAP[tool.__name__] = tool
+
+
+def add_ollama_web_tools(client: AsyncClient) -> list:
+    async def web_search(query: str, max_results: int = 3) -> str:
+        try:
+            response = await client.web_search(query=query)
+
+            results = []
+            for r in response.results[:max_results]:
+                results.append({"title": r.title, "url": r.url, "body": r.content})
+
+            return json.dumps(results)
+        except Exception as e:
+            return f"Search failed: {e}"
+
+    async def web_fetch(url: str) -> str:
+        try:
+            # Must await AsyncClient methods
+            response = await client.web_fetch(url=url)
+
+            text = f"Title: {response.title}\n\n{response.content}"
+
+            max_chars = 15000
+            if len(text) > max_chars:
+                text = text[:max_chars] + "\n\n...[Content truncated due to length]..."
+
+            return text
+        except Exception as e:
+            return f"Failed to fetch webpage: {str(e)}"
+
+    new_tools = [web_search, web_fetch]
+    AVAILABLE_TOOLS.extend(new_tools)
+    for tool in new_tools:
+        TOOLS_NAME_MAP[tool.__name__] = tool
+
 
 __all__ = [
     "AVAILABLE_TOOLS",
-    "TOOLS",
+    "TOOLS_NAME_MAP",
+    "add_ollama_web_tools",
 ]
