@@ -257,13 +257,13 @@ class AiCog(GroupCog, group_name="ai"):
 
     @app_commands.command(name="sys", description="send system message (instruction) to chatbot")
     @app_commands.describe(think="Set how hard the bot thinks. default: off")
-    @app_commands.describe(no_reply="Tell the bot to reply to you immediatly or not. default: False")
+    @app_commands.describe(no_reply="Tell the bot to reply to you immediatly or not. default: True")
     async def sys(
         self,
         interaction: Interaction,
         msg: str,
         think: Optional[str] = "off",
-        no_reply: Optional[bool] = False
+        no_reply: Optional[bool] = True
     ):
         await self.send_chatbot_message(interaction, msg, "system", think, no_reply, False)
 
