@@ -49,7 +49,7 @@ class AiCog(GroupCog, group_name="ai"):
             model="kot-skoffer",
             basemodel=os.getenv("LLM_MODEL"),
             ollama_api_key=os.getenv("OLLAMA_API_KEY"),
-            max_history=100,
+            max_history=os.getenv("LLM_HISTORY_WINDOW"),
             datapath="data/chatbot_history.json",
         )
 
