@@ -151,34 +151,33 @@ def asciify(src_image: Image, character_size: int, bg_influence: float, no_color
 
     draw = ImageDraw.Draw(dst_image)
 
-    for cx in range(0, dst_width):
-        for cy in range(0, dst_height):
-            x = cx * cwidth
-            y = cy * cheight
+    # use bilinear interpolation to calculate average color
+    # using internal PIL logic (fast)
+    small_img = src_image.resize(
+        (dst_width, dst_height),
+        resample=Image.Resampling.BILINEAR
+    )
+    pixels = small_img.load()
 
-            avg_color = [0, 0, 0]
-            for i in range(x, x + cwidth):
-                for j in range(y, y + cheight):
-                    if i < src_image.size[0] and j < src_image.size[1]:
-                        color = pixels[i, j]
-                        for n in range(0, 3):
-                            avg_color[n] += color[n]
-
-            for n in range(0, 3):
-                avg_color[n] /= cwidth * cheight
-            rate = (avg_color[0] + avg_color[1] + avg_color[2]) / 3 / 255 * PALLETE_COUNT
+    for cy in range(0, dst_height):
+        for cx in range(0, dst_width):
+            avg_color = pixels[cx, cy]
+            rate = sum(avg_color) / 3 / 255 * PALLETE_COUNT
 
             visual_density = min(int(rate + 0.5), PALLETE_COUNT-1)
             if invert_brightness:
                 visual_density = PALLETE_COUNT - 1 - visual_density
 
             pallete = PALLETE["visual_density"][visual_density]
-            draw_set = random.choice(pallete)
+            char, style = random.choice(pallete)
 
             if no_color:
                 avg_color = [255, 255, 255]
 
-            if not chars_only:
+            x = cx * cwidth
+            y = cy * cheight
+
+            if not chars_only and bg_influence > 0:
                 # bg
                 draw.rectangle(
                     [(x, y), (x + cwidth, y + cheight)],
@@ -188,9 +187,9 @@ def asciify(src_image: Image, character_size: int, bg_influence: float, no_color
             # fg
             draw.text(
                 (x, y),
-                draw_set[0],
+                char,
                 fill=tuple(int(x) for x in avg_color),
-                font=font_map[draw_set[1]]
+                font=font_map[style]
             )
 
     return dst_image
