@@ -2,6 +2,8 @@ import discord
 from discord import Interaction
 from discord import app_commands
 
+from typing import Optional
+
 from dotenv import load_dotenv
 import os
 import requests
@@ -13,9 +15,16 @@ discord_token = os.getenv("DISCORD_TOKEN")
 if not discord_token:
     print("TOKEN not set!")
     exit(1)
-elif not os.getenv("LLM_MODEL"):
-    print("LLM_MODEL not set!")
-    exit(1)
+
+ai_enabled = os.getenv("ENABLE_AI")
+
+if ai_enabled:
+    if not os.getenv("LLM_MODEL"):
+        print("LLM_MODEL not set!")
+        exit(1)
+    if not os.getenv("LLM_HISTORY_WINDOW"):
+        print("LLM_HISTORY_WINDOW not set!")
+        exit(1)
 
 
 intents = discord.Intents.default()
@@ -37,7 +46,7 @@ async def on_ready():
     await bot.add_cog(cog.ImageCog(bot))
     await bot.add_cog(cog.WeatherCog(bot))
 
-    if os.getenv("ENABLE_AI"):
+    if ai_enabled:
         await bot.add_cog(cog.AiCog(bot))
 
     await bot.tree.sync()
@@ -77,6 +86,37 @@ async def numberfact(interaction: Interaction, number: int):
 
     if response.status_code == 200:
         await interaction.response.send_message(response.text)
+
+
+@bot.tree.command(name="text", description="get an image with texts")
+@app_commands.describe(
+    text="the content of the image",
+    size="font size. default: 32",
+    bg="background color, hex value e.g #aabbccdd or #aabbcc or #abc. default: #ffffff",
+    fg="foreground color, hex value e.g #aabbccdd or #aabbcc or #abc. default: #000000",
+    bold="use bold font. default: False",
+    italic="use italic font. default: False",
+)
+async def text(
+    interaction: Interaction,
+    text: str,
+    size: Optional[int] = 32,
+    bg: Optional[str] = "#ffffff",
+    fg: Optional[str] = "#000000",
+    bold: Optional[bool] = False,
+    italic: Optional[bool] = False
+):
+    image_cog = bot.get_cog("ImageCog")
+    await image_cog.text.callback(
+        image_cog,
+        interaction,
+        text,
+        size,
+        bg,
+        fg,
+        bold,
+        italic
+    )
 
 
 bot.run(discord_token)

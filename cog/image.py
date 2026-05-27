@@ -17,6 +17,12 @@ HEX_REGEX = r'^#([A-Fa-f0-9]{8}|[A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$'
 HOST_SERVICE = "0x0.st"
 
 
+async def send_image(interaction: Interaction, image: Image, name: str):
+    buffer, _ = image_process.reduce_size(image)
+    discord_file = discord.File(fp=buffer, filename=name + ".png")
+    await interaction.followup.send(file=discord_file)
+
+
 class ImageCog(GroupCog, group_name="image"):
     def __init__(self, bot):
         self.bot = bot
@@ -54,11 +60,6 @@ class ImageCog(GroupCog, group_name="image"):
             await interaction.followup.send(msg, file=discord_file)
         else:
             await interaction.followup.send("done processing. unable to send the high quality one, sent with low quality via attachment instead. image maybe downscaled", file=discord_file)
-
-    async def send_image(self, interaction: Interaction, image: Image, name: str):
-        buffer, _ = image_process.reduce_size(image)
-        discord_file = discord.File(fp=buffer, filename=name + ".png")
-        await interaction.followup.send(file=discord_file)
 
     @app_commands.command(name="paste", description="paste foreground onto background")
     @app_commands.describe(
@@ -369,7 +370,7 @@ class ImageCog(GroupCog, group_name="image"):
     @app_commands.command(name="linear_gradient", description="generate a linear gradient")
     async def linear_gradient(self, interaction: Interaction):
         await interaction.response.defer()
-        await self.send_image(
+        await send_image(
             interaction,
             Image.linear_gradient("L"),
             "linear_gradient"
@@ -378,7 +379,7 @@ class ImageCog(GroupCog, group_name="image"):
     @app_commands.command(name="radial_gradient", description="generate a radial gradient")
     async def radial_gradient(self, interaction: Interaction):
         await interaction.response.defer()
-        await self.send_image(
+        await send_image(
             interaction,
             Image.radial_gradient("L"),
             "radial_gradient"
@@ -434,7 +435,7 @@ class ImageCog(GroupCog, group_name="image"):
 
         await interaction.response.defer()
 
-        await self.send_image(
+        await send_image(
             interaction,
             await asyncio.to_thread(
                 image_process.text,
