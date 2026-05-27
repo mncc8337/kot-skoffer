@@ -1,11 +1,14 @@
+import lib.font
 from PIL import Image, ImageDraw, ImageFont
 import json
 
+sample_font = lib.font.UBUNTU_MONO
+
 fonts = [
-    (ImageFont.truetype("ubuntu-font-family/UbuntuMono-R.ttf", 16), "r"),
-    (ImageFont.truetype("ubuntu-font-family/UbuntuMono-RI.ttf", 16), "ri"),
-    (ImageFont.truetype("ubuntu-font-family/UbuntuMono-B.ttf", 16), "b"),
-    (ImageFont.truetype("ubuntu-font-family/UbuntuMono-BI.ttf", 16), "bi"),
+    (ImageFont.truetype(sample_font.r, 16), "r"),
+    (ImageFont.truetype(sample_font.ri, 16), "ri"),
+    (ImageFont.truetype(sample_font.b, 16), "b"),
+    (ImageFont.truetype(sample_font.bi, 16), "bi"),
 ]
 
 printable_chars = [chr(i) for i in range(32, 127)]
@@ -14,13 +17,17 @@ char_fill_levels = []
 
 for font, style in fonts:
     for char in printable_chars:
-        width, height = font.getbbox(char)[2:]
+        bbox = font.getbbox(char)
+        left, top, right, bottom = bbox
+
+        width = right - left
+        height = bottom - top
+
         image = Image.new("L", (width, height), 0)
         draw = ImageDraw.Draw(image)
-        draw.text((0, 0), char, font=font, fill=255)
+        draw.text((-left, -top), char, font=font, fill=255)
 
-        pixel_data = image.getdata()
-        fill_count = sum(1 for pixel in pixel_data if pixel > 0)
+        fill_count = sum(image.getdata()) // 255
 
         char_fill_levels.append((char, fill_count, style))
 

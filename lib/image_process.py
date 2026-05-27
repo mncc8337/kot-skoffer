@@ -1,6 +1,7 @@
 import json
 import random
 import io
+import lib.font
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 
@@ -107,17 +108,20 @@ def noise(size: tuple[int, int], sigma: float):
     return Image.effect_noise(size, sigma)
 
 
-def text(text: str, size: int, bg: str, fg: str, bold: bool):
-    font = None
-    if not bold:
-        font = ImageFont.truetype("ubuntu-font-family/UbuntuMono-R.ttf", size=size)
-    else:
-        font = ImageFont.truetype("ubuntu-font-family/UbuntuMono-B.ttf", size=size)
+def text(text: str, size: int, bg: str, fg: str, bold: bool, italic: bool):
+    font = ImageFont.truetype(
+        lib.font.IBM_PLEX_SANS.get_f(bold, italic),
+        size=size
+    )
 
-    width, height = int(font.getlength(text)), size
+    left, top, right, bottom = font.getbbox(text)
+
+    padding = 5
+    width = right - left + padding * 2
+    height = bottom - top + padding * 2
     image = Image.new('RGBA', (width, height), color=bg)
     draw = ImageDraw.Draw(image)
-    draw.text((0, 0), text, fill=fg, font=font)
+    draw.text((-left + padding, -top + padding), text, fill=fg, font=font)
 
     return image
 
@@ -126,13 +130,14 @@ def asciify(src_image: Image, character_size: int, bg_influence: float, no_color
     pixels = src_image.load()
 
     font_map = {
-        "r": ImageFont.truetype("ubuntu-font-family/UbuntuMono-R.ttf", size=character_size),
-        "ri": ImageFont.truetype("ubuntu-font-family/UbuntuMono-RI.ttf", size=character_size),
-        "b": ImageFont.truetype("ubuntu-font-family/UbuntuMono-B.ttf", size=character_size),
-        "bi": ImageFont.truetype("ubuntu-font-family/UbuntuMono-BI.ttf", size=character_size),
+        "r": ImageFont.truetype(lib.font.UBUNTU_MONO.r, size=character_size),
+        "ri": ImageFont.truetype(lib.font.UBUNTU_MONO.ri, size=character_size),
+        "b": ImageFont.truetype(lib.font.UBUNTU_MONO.b, size=character_size),
+        "bi": ImageFont.truetype(lib.font.UBUNTU_MONO.bi, size=character_size),
     }
-
-    cwidth, cheight = int(font_map["bi"].getlength("w")), character_size
+    ascent, descent = font_map["bi"].getmetrics()
+    cheight = ascent + descent
+    cwidth = int(font_map["bi"].getlength("w"))
 
     dst_width, dst_height = src_image.size
     dst_width = int(dst_width / cwidth)

@@ -406,6 +406,7 @@ class ImageCog(GroupCog, group_name="image"):
         bg="background color, hex value e.g #aabbccdd or #aabbcc or #abc. default: #ffffff",
         fg="foreground color, hex value e.g #aabbccdd or #aabbcc or #abc. default: #000000",
         bold="use bold font. default: False",
+        italic="use italic font. default: False",
     )
     async def text(
         self,
@@ -414,7 +415,8 @@ class ImageCog(GroupCog, group_name="image"):
         size: Optional[int] = 32,
         bg: Optional[str] = "#ffffff",
         fg: Optional[str] = "#000000",
-        bold: Optional[bool] = False
+        bold: Optional[bool] = False,
+        italic: Optional[bool] = False
     ):
         if not re.match(HEX_REGEX, bg):
             await interaction.response.send_message(
@@ -434,7 +436,15 @@ class ImageCog(GroupCog, group_name="image"):
 
         await self.send_image(
             interaction,
-            await asyncio.to_thread(image_process.text, text, size, bg, fg, bold),
+            await asyncio.to_thread(
+                image_process.text,
+                text,
+                size,
+                bg,
+                fg,
+                bold,
+                italic
+            ),
             text
         )
 

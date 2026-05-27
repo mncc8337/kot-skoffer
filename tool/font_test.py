@@ -1,3 +1,4 @@
+import lib.font
 from PIL import Image, ImageDraw, ImageFont
 
 width, height = 350, 50
@@ -5,7 +6,7 @@ image = Image.new('RGB', (width, height), color='white')
 
 draw = ImageDraw.Draw(image)
 
-font = ImageFont.truetype("ubuntu-font-family/UbuntuMono-R.ttf", size=50)
+font = ImageFont.truetype(lib.font.IBM_PLEX_SANS.r, size=50)
 
 text = "Hello, Pillow!"
 position = (0, 0)
