@@ -2,6 +2,7 @@ import discord
 from discord import Interaction
 from discord import app_commands
 
+from lib.message2interaction import MessageInteractionAdapter
 from typing import Optional
 
 from dotenv import load_dotenv
@@ -70,10 +71,26 @@ async def on_message(message):
         await message.channel.send(str(emoji))
 
     if bot.user in message.mentions:
-        emoji = discord.utils.get(message.guild.emojis, name="car")
-        await message.channel.send(f"{emoji} ?")
+        if ai_enabled:
+            ai_cog = bot.get_cog("AiCog")
+            clean_content = message.content.replace(f"<@{bot.user.id}>", "").strip()
+            if not clean_content:
+                clean_content = "meow"
 
-    await bot.process_commands(message)
+            fake_interaction = MessageInteractionAdapter(message)
+
+            await ai_cog.send_chatbot_message(
+                interaction=fake_interaction,
+                msg=clean_content,
+                role="user",
+                think="off",
+                no_reply=False,
+                continuation=False
+            )
+            return
+        else:
+            emoji = discord.utils.get(message.guild.emojis, name="car")
+            await message.channel.send(f"{emoji} ?")
 
 
 @bot.tree.command(name="numberfact", description="see random number fact")
