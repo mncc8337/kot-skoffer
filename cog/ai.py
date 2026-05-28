@@ -22,39 +22,48 @@ def get_instruction():
 
 THINK_OPTIONS = [
     "off",
-    "low", "medium", "high",
+    "low",
+    "medium",
+    "high",
 ]
 
 
 def get_semantic_chunks(text, max_limit=1900):
     chunks = []
-    paragraphs = text.split('\n\n')
+    lines = text.split("\n")
     current_chunk = ""
+    in_code_block = False
+    code_lang = ""
 
-    for p in paragraphs:
-        if len(current_chunk) + len(p) + 2 > max_limit and current_chunk:
-            chunks.append(current_chunk.strip())
-            current_chunk = ""
+    for line in lines:
+        if line.strip().startswith("```"):
+            if not in_code_block:
+                in_code_block = True
+                code_lang = line.strip()[3:]
+            else:
+                in_code_block = False
+                code_lang = ""
 
-        if len(p) > max_limit:
-            sentences = p.replace('. ', '. <SPLIT>').split('<SPLIT>')
-            for s in sentences:
-                if len(current_chunk) + len(s) > max_limit and current_chunk:
-                    chunks.append(current_chunk.strip())
+        if len(current_chunk) + len(line) + 1 > max_limit and current_chunk:
+            if in_code_block:
+                current_chunk += "\n```"
+                chunks.append(current_chunk.strip())
+                current_chunk = f"```{code_lang}\n{line}\n"
+            else:
+                chunks.append(current_chunk.strip())
+
+                if len(line) > max_limit:
+                    for i in range(0, len(line), max_limit):
+                        chunks.append(line[i : i + max_limit])
                     current_chunk = ""
-
-                if len(s) > max_limit:
-                    for i in range(0, len(s), max_limit):
-                        if len(current_chunk) + len(s[i:i+max_limit]) > max_limit and current_chunk:
-                            chunks.append(current_chunk.strip())
-                            current_chunk = ""
-                        current_chunk += s[i:i+max_limit]
                 else:
-                    current_chunk += s
+                    current_chunk = line + "\n"
         else:
-            current_chunk += p + "\n\n"
+            current_chunk += line + "\n"
 
     if current_chunk.strip():
+        if in_code_block and not current_chunk.strip().endswith("```"):
+            current_chunk += "\n```"
         chunks.append(current_chunk.strip())
 
     return chunks if chunks else [""]
@@ -85,6 +94,60 @@ class AiCog(GroupCog, group_name="ai"):
             print(f"kot: creating model {self.aibot.model}...")
             await self.aibot.create()
 
+    def _format_thought(
+        self,
+        full_thought: str,
+        continuation: bool,
+        is_done: bool = False
+    ) -> str:
+        display_thought = full_thought.strip()
+
+        if len(display_thought) > 1850:
+            tail = display_thought[-1800:]
+            cut_index = tail.find("\n")
+            if cut_index != -1:
+                tail = tail[cut_index + 1:]
+            display_thought = "... [earlier thoughts truncated] ...\n" + tail
+
+        quoted = "\n".join([f"> {line}" for line in display_thought.split("\n")])
+
+        if is_done:
+            return f"**kot done think**\n{quoted}"[:2000]
+        elif not continuation:
+            return f"**SILENCE, the kot is thinking**\n{quoted}"[:2000]
+        else:
+            return f"**SILENCE, the kot is still thinking**\n{quoted}"[:2000]
+
+    async def _handle_tool_calls(
+        self,
+        msg_data: dict,
+        tool_chunk: list
+    ) -> list:
+        executed_tools = []
+
+        for tool in tool_chunk:
+            func_name = tool.function.name
+            func_args = tool.function.arguments
+            function_to_call = TOOLS_NAME_MAP.get(func_name)
+
+            if not function_to_call:
+                executed_tools.append((func_name, "tool not found"))
+                continue
+
+            print(f"kot: calling function: {func_name} with arguments: {func_args}")
+
+            try:
+                if inspect.iscoroutinefunction(function_to_call):
+                    output = await function_to_call(**func_args)
+                else:
+                    output = function_to_call(**func_args)
+                executed_tools.append((func_name, str(output)))
+            except Exception as e:
+                print(f"kot: Error executing tool {func_name}: {e}")
+                executed_tools.append((func_name, f"Error: {str(e)}"))
+
+        return executed_tools
+
     async def send_chatbot_message(
         self,
         interaction: Interaction,
@@ -92,7 +155,7 @@ class AiCog(GroupCog, group_name="ai"):
         role: str,
         think: str,
         no_reply: bool,
-        continuation: bool
+        continuation: bool,
     ):
         msg = msg.strip()
         if not msg and not continuation:
@@ -100,14 +163,15 @@ class AiCog(GroupCog, group_name="ai"):
 
         stream = await self.aibot.chat(msg, role, think, no_reply, interaction)
 
-        if not continuation:
-            if no_reply:
-                if role == "system":
-                    await interaction.response.send_message("system instruction sent")
-                else:
-                    await interaction.response.send_message("message sent")
+        if no_reply:
+            status = "message sent"
+            if role == "system":
+                "system instruction sent"
+
+                await interaction.response.send_message(status)
                 return
 
+        if not continuation:
             await interaction.response.defer()
 
         full_content = ""
@@ -117,84 +181,58 @@ class AiCog(GroupCog, group_name="ai"):
         thought_msg = None
         content_msgs = []
 
-        tool_call = ""
-        tool_output = None
-        tool_name = None
+        tool_call_data = {}
+        executed_tools = []
 
         async for chunk in stream:
             if self.stop_flag:
                 self.stop_flag = False
                 break
 
-            msg_data = chunk.get("message", {})
+            msg_data = chunk.get("message", {}) or {}
             think_chunk = msg_data.get("thinking", "") or ""
             content_chunk = msg_data.get("content", "") or ""
-            tool_chunk = msg_data.get("tool_calls", {}) or []
+            tool_chunk = msg_data.get("tool_calls", []) or []
 
             if tool_chunk:
-                tool_call = msg_data
-                for tool in tool_chunk:
-                    if function_to_call := TOOLS_NAME_MAP.get(tool.function.name):
-                        print("kot: calling function:", tool.function.name, "with arguments:", tool.function.arguments)
-                        output = ""
-                        if inspect.iscoroutinefunction(function_to_call):
-                            output = await function_to_call(**tool.function.arguments)
-                        else:
-                            output = function_to_call(**tool.function.arguments)
-
-                        tool_output = str(output)
-                        tool_name = tool.function.name
-                    else:
-                        print("Function", tool.function.name, "not found")
+                tool_call_data = msg_data
+                executed_tools = await self._handle_tool_calls(
+                    msg_data,
+                    tool_chunk
+                )
 
             full_thought += think_chunk
             full_content += content_chunk
-
             update_buffer += len(think_chunk) + len(content_chunk)
 
             if update_buffer > 20 or chunk.get("done", False):
                 update_buffer = 0
 
+                # thinking state
                 if full_thought and not full_content:
-                    display_thought = full_thought.strip()
-
-                    if len(display_thought) > 1850:
-                        tail = display_thought[-1800:]
-                        cut_index = tail.find('\n')
-                        if cut_index != -1:
-                            tail = tail[cut_index+1:]
-                        display_thought = "... [earlier thoughts truncated] ...\n" + tail
-
-                    quoted = "\n".join([f"> {line}" for line in display_thought.split('\n')])
-                    if not continuation:
-                        formatted_msg = f"**SILENCE, the kot is thinking**\n{quoted}"[:2000]
-                    else:
-                        formatted_msg = f"**SILENCE, the kot is still thinking**\n{quoted}"[:2000]
+                    formatted_msg = self._format_thought(
+                        full_thought,
+                        continuation
+                    )
 
                     if thought_msg is None:
-                        thought_msg = await interaction.followup.send(content=formatted_msg)
-                    else:
-                        await interaction.followup.edit_message(
-                            message_id=thought_msg.id,
+                        thought_msg = await interaction.followup.send(
                             content=formatted_msg
                         )
-
-                elif full_content:
-                    if thought_msg and not content_msgs:
-                        display_thought = full_thought.strip()
-
-                        if len(display_thought) > 1850:
-                            tail = display_thought[-1800:]
-                            cut_index = tail.find('\n')
-                            if cut_index != -1:
-                                tail = tail[cut_index+1:]
-                            display_thought = "... [earlier thoughts truncated] ...\n" + tail
-
-                        quoted = "\n".join([f"> {line}" for line in display_thought.split('\n')])
-                        final_thought = f"**kot done think**\n{quoted}"[:2000]
+                    else:
                         await interaction.followup.edit_message(
-                            message_id=thought_msg.id,
-                            content=final_thought
+                            message_id=thought_msg.id, content=formatted_msg
+                        )
+
+                # generating response state
+                elif full_content:
+                    # finalize thought message
+                    if thought_msg and not content_msgs:
+                        final_thought = self._format_thought(
+                            full_thought, continuation, is_done=True
+                        )
+                        await interaction.followup.edit_message(
+                            message_id=thought_msg.id, content=final_thought
                         )
 
                     display_content = full_content.strip()
@@ -205,60 +243,90 @@ class AiCog(GroupCog, group_name="ai"):
                             if content_msgs:
                                 await interaction.followup.edit_message(
                                     message_id=content_msgs[-1].id,
-                                    content=chunks[len(content_msgs)-1]
+                                    content=chunks[len(content_msgs) - 1],
                                 )
                             for new_text in chunks[len(content_msgs):]:
-                                new_msg = await interaction.followup.send(content=new_text)
-                                content_msgs.append(new_msg)
-                        else:
-                            if content_msgs:
-                                await interaction.followup.edit_message(
-                                    message_id=content_msgs[-1].id,
-                                    content=chunks[-1]
+                                new_msg = await interaction.followup.send(
+                                    content=new_text
                                 )
+                                content_msgs.append(new_msg)
 
-        if not full_content.strip() and not full_thought.strip() and not tool_call:
+                        elif content_msgs:
+                            await interaction.followup.edit_message(
+                                message_id=content_msgs[-1].id,
+                                content=chunks[-1]
+                            )
+
+        message_empty = not full_content.strip() and not full_thought.strip()
+        if message_empty and not tool_call_data:
             await interaction.followup.send("*(the cat is silent meow meow)*")
 
-        if full_content.strip() or tool_call:
+        if full_content.strip() or tool_call_data:
             self.aibot.add_bot_response(full_content, interaction)
             self.aibot.save_history()
 
-        if tool_call:
-            self.aibot.add_response(tool_call, interaction)
-            self.aibot.add_tool_response(tool_output, tool_name, interaction)
-            await self.send_chatbot_message(interaction, "", "", think, False, True)
+        if tool_call_data:
+            self.aibot.add_response(tool_call_data, interaction)
+            for t_name, t_out in executed_tools:
+                self.aibot.add_tool_response(t_out, t_name, interaction)
 
-    async def autocomplete_think_option(self, interaction: Interaction, current: str):
+            # send tool result back to the bot and start new message
+            await self.send_chatbot_message(
+                interaction,
+                "",
+                "",
+                think,
+                False,
+                True
+            )
+
+    async def autocomplete_think_option(
+        self,
+        interaction: Interaction,
+        current: str
+    ):
         return [
             app_commands.Choice(name=code, value=code)
-            for code in THINK_OPTIONS if code.startswith(current.lower())
+            for code in THINK_OPTIONS
+            if code.startswith(current.lower())
         ][:25]
 
-    @app_commands.command(name="chat", description="deekseep or something else you can chat with")
+    @app_commands.command(
+        name="chat", description="deekseep or something else you can chat with"
+    )
     @app_commands.describe(think="Set how hard the bot thinks. default: off")
-    @app_commands.describe(no_reply="Tell the bot to reply to you immediatly or not. default: False")
+    @app_commands.describe(
+        no_reply="Tell the bot to reply to you immediatly or not. default: False"
+    )
     @app_commands.autocomplete(think=autocomplete_think_option)
     async def chat(
         self,
         interaction: Interaction,
         msg: str,
         think: Optional[str] = "off",
-        no_reply: Optional[bool] = False
+        no_reply: Optional[bool] = False,
     ):
-        await self.send_chatbot_message(interaction, msg, "user", think, no_reply, False)
+        await self.send_chatbot_message(
+            interaction, msg, "user", think, no_reply, False
+        )
 
-    @app_commands.command(name="sys", description="send system message (instruction) to chatbot")
+    @app_commands.command(
+        name="sys", description="send system message (instruction) to chatbot"
+    )
     @app_commands.describe(think="Set how hard the bot thinks. default: off")
-    @app_commands.describe(no_reply="Tell the bot to reply to you immediatly or not. default: True")
+    @app_commands.describe(
+        no_reply="Tell the bot to reply to you immediatly or not. default: True"
+    )
     async def sys(
         self,
         interaction: Interaction,
         msg: str,
         think: Optional[str] = "off",
-        no_reply: Optional[bool] = True
+        no_reply: Optional[bool] = True,
     ):
-        await self.send_chatbot_message(interaction, msg, "system", think, no_reply, False)
+        await self.send_chatbot_message(
+            interaction, msg, "system", think, no_reply, False
+        )
 
     @app_commands.command(name="stop", description="stop current response")
     async def stop(self, interaction: Interaction):
@@ -268,7 +336,9 @@ class AiCog(GroupCog, group_name="ai"):
     @app_commands.command(name="info", description="info about the chatbot")
     async def msginfo(self, interaction: Interaction):
         await interaction.response.send_message(
-            content="```\n" + json.dumps(await self.aibot.get_info(), indent=4) + "\n```",
+            content="```\n"
+            + json.dumps(await self.aibot.get_info(), indent=4)
+            + "\n```",
             ephemeral=True,
         )
 
