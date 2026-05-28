@@ -10,7 +10,7 @@ from typing import Optional
 import inspect
 
 
-def generate_instruction():
+def get_instruction():
     ins = ""
     filename = os.getenv("LLM_INSTRUCTION")
     if filename != "NONE":
@@ -25,24 +25,62 @@ THINK_OPTIONS = [
 ]
 
 
+def get_semantic_chunks(text, max_limit=1900):
+    chunks = []
+    paragraphs = text.split('\n\n')
+    current_chunk = ""
+
+    for p in paragraphs:
+        if len(current_chunk) + len(p) + 2 > max_limit and current_chunk:
+            chunks.append(current_chunk.strip())
+            current_chunk = ""
+
+        if len(p) > max_limit:
+            sentences = p.replace('. ', '. <SPLIT>').split('<SPLIT>')
+            for s in sentences:
+                if len(current_chunk) + len(s) > max_limit and current_chunk:
+                    chunks.append(current_chunk.strip())
+                    current_chunk = ""
+
+                if len(s) > max_limit:
+                    for i in range(0, len(s), max_limit):
+                        if len(current_chunk) + len(s[i:i+max_limit]) > max_limit and current_chunk:
+                            chunks.append(current_chunk.strip())
+                            current_chunk = ""
+                        current_chunk += s[i:i+max_limit]
+                else:
+                    current_chunk += s
+        else:
+            current_chunk += p + "\n\n"
+
+    if current_chunk.strip():
+        chunks.append(current_chunk.strip())
+
+    return chunks if chunks else [""]
+
+
 class AiCog(GroupCog, group_name="ai"):
     def __init__(self, bot):
         self.stop_flag = False
         self.bot = bot
 
         self.aibot = chatbot.Chatbot(
-            model="kot-skoffer",
-            basemodel=os.getenv("LLM_MODEL"),
-            ollama_api_key=os.getenv("OLLAMA_API_KEY"),
-            max_history=int(os.getenv("LLM_HISTORY_WINDOW")),
             datapath="data/chatbot_history.json",
+            basemodel=os.getenv("LLM_MODEL"),
+            instruction=get_instruction(),
+            ollama_api_key=os.getenv("OLLAMA_API_KEY"),
+            local=os.getenv("LLM_LOCAL_ONLY"),
+            max_history=int(os.getenv("LLM_HISTORY_WINDOW")),
         )
 
     async def cog_load(self):
+        if not os.getenv("LLM_LOCAL_ONLY"):
+            return
+
         print(f"kot: checking if {self.aibot.model} exists...")
         if not await self.aibot.exist():
             print(f"kot: creating model {self.aibot.model}...")
-            await self.aibot.create(generate_instruction())
+            await self.aibot.create()
 
     async def send_chatbot_message(
         self,
@@ -79,39 +117,6 @@ class AiCog(GroupCog, group_name="ai"):
         tool_call = ""
         tool_output = None
         tool_name = None
-
-        def get_semantic_chunks(text, max_limit=1900):
-            chunks = []
-            paragraphs = text.split('\n\n')
-            current_chunk = ""
-
-            for p in paragraphs:
-                if len(current_chunk) + len(p) + 2 > max_limit and current_chunk:
-                    chunks.append(current_chunk.strip())
-                    current_chunk = ""
-
-                if len(p) > max_limit:
-                    sentences = p.replace('. ', '. <SPLIT>').split('<SPLIT>')
-                    for s in sentences:
-                        if len(current_chunk) + len(s) > max_limit and current_chunk:
-                            chunks.append(current_chunk.strip())
-                            current_chunk = ""
-
-                        if len(s) > max_limit:
-                            for i in range(0, len(s), max_limit):
-                                if len(current_chunk) + len(s[i:i+max_limit]) > max_limit and current_chunk:
-                                    chunks.append(current_chunk.strip())
-                                    current_chunk = ""
-                                current_chunk += s[i:i+max_limit]
-                        else:
-                            current_chunk += s
-                else:
-                    current_chunk += p + "\n\n"
-
-            if current_chunk.strip():
-                chunks.append(current_chunk.strip())
-
-            return chunks if chunks else [""]
 
         async for chunk in stream:
             if self.stop_flag:

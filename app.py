@@ -29,6 +29,9 @@ if ai_enabled:
     if not os.getenv("LLM_INSTRUCTION"):
         print("LLM_INSTRUCTION not set!")
         exit(1)
+    if not os.getenv("LLM_LOCAL_ONLY") and not os.getenv("OLLAMA_API_KEY"):
+        print("OLLAMA_API_KEY not set!")
+        exit(1)
 
 
 intents = discord.Intents.default()

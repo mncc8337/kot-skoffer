@@ -12,7 +12,8 @@ bad discord bot
 ### env
 `cp .env.example .env` then edit it
 ### run
-first run `ollama serve` then do `python3 app.py`.  
+just do `python3 app.py`.  
+u will need an `OLLAMA_API_KEY` to use the ai features.  
 all data will be saved in `./data`
 > [!Note]
 > - for `/random image` to work you need to put some images in `./images`. make sure that you only put images heree beside the .gitignore else the bot will freeze

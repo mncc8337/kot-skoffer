@@ -20,26 +20,42 @@ def serialize_message(message) -> dict:
 
 
 class Chatbot:
-    def __init__(self, datapath, model, basemodel, ollama_api_key, max_history=-1):
-        self.model = model
+    def __init__(
+        self,
+        datapath,
+        basemodel,
+        instruction,
+        ollama_api_key,
+        local=None,
+        model="kot-skoffer",
+        max_history=-1
+    ):
+        if local is None:
+            local = not basemodel.lower().endswith("cloud")
+
+        if local:
+            self.model = model
+        else:
+            self.model = basemodel
+
         self.basemodel = basemodel
+        self.instruction = instruction
         self.max_history = max_history
         self.data = Data(datapath)
 
-        self.local_client = AsyncClient(
-            host="http://localhost:11434",
-            headers={"Authorization": f"Bearer {ollama_api_key}"},
+        host = "https://ollama.com"
+        if local:
+            host = "http://localhost:11434"
+
+        self.client = AsyncClient(
+            host=host,
+            headers={
+                # needed for web_search/fetch
+                # might remove later when i made it fully local
+                "Authorization": f"Bearer {ollama_api_key}"
+            }
         )
-
-        if self.basemodel.lower().endswith("cloud"):
-            self.chat_client = AsyncClient(
-                host="https://ollama.com",
-                headers={"Authorization": f"Bearer {ollama_api_key}"},
-            )
-        else:
-            self.chat_client = self.local_client
-
-        bot_tools.add_ollama_web_tools(self.chat_client)
+        bot_tools.add_ollama_web_tools(self.client)
 
     def _history_slide(self, chat_data: list):
         if self.max_history < 0:
@@ -51,7 +67,7 @@ class Chatbot:
         self.data.save()
 
     async def exist(self):
-        response = await self.local_client.list()
+        response = await self.client.list()
         models = response.get("models", [])
         for model in models:
             if model.model == f"{self.model}:latest":
@@ -59,7 +75,7 @@ class Chatbot:
         return False
 
     async def create(self, instruction):
-        await self.local_client.create(
+        await self.client.create(
             model=self.model,
             from_=self.basemodel,
             system=instruction,
@@ -75,8 +91,12 @@ class Chatbot:
     ):
         chat_data = self.data.get_data(interaction, [])
 
+        message = {"role": role, "content": content}
+        instruction = {"role": "system", "content": self.instruction}
+        new_messages = chat_data + [instruction, message]
+
         if role:
-            chat_data.append({"role": role, "content": content})
+            chat_data.append(message)
             self._history_slide(chat_data)
 
         if no_reply:
@@ -88,9 +108,9 @@ class Chatbot:
         elif think in ["low", "medium", "high"]:
             ollama_think = think
 
-        return await self.chat_client.chat(
+        respond = await self.client.chat(
             model=self.model,
-            messages=chat_data,
+            messages=new_messages,
             think=ollama_think,
             options={
                 "temperature": 1.3,
@@ -98,6 +118,8 @@ class Chatbot:
             tools=bot_tools.AVAILABLE_TOOLS,
             stream=True,
         )
+
+        return respond
 
     def add_response(self, message, interaction: Interaction):
         chat_data = self.data.get_data(interaction, [])
@@ -121,10 +143,9 @@ class Chatbot:
         chat_data.clear()
 
     async def get_info(self):
-        info = await self.local_client.show(self.model)
+        info = await self.client.show(self.model)
 
         ret = {
-            "name": self.model,
             "base_model": self.basemodel,
             "modified_at": str(info.modified_at),
         }
@@ -134,7 +155,7 @@ class Chatbot:
 
         if not clean_details.get("parameter_size"):
             try:
-                base_info = await self.chat_client.show(self.basemodel)
+                base_info = await self.client.show(self.basemodel)
                 base_details = vars(base_info.details)
 
                 fallback_details = {
@@ -143,6 +164,7 @@ class Chatbot:
 
                 clean_details = fallback_details | clean_details
             except Exception:
+
                 pass
 
         return ret | clean_details
