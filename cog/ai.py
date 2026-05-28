@@ -6,32 +6,17 @@ import lib.chatbot as chatbot
 from lib.bot_tools import TOOLS_NAME_MAP
 import json
 import os
-import random
 from typing import Optional
 import inspect
 
 
 def generate_instruction():
-    lolcat_content = {}
-    with open("lol_us.json", "r") as f:
-        lolcat_content = json.load(f)
-    lolcat_sentences = ""
-    sentence_length = 64
-    while len(lolcat_sentences) < sentence_length:
-        for key in lolcat_content.keys():
-            if random.randint(0, 100) < 10:
-                lolcat_sentences += lolcat_content[key] + ", "
-            if len(lolcat_sentences) >= sentence_length:
-                break
-    return f"""
-    your name is kot skoffer.
-    use discord's markdown flavor.
-    if the user asks about anything that could have changed recently, or asks for factuak verification, you MUST execute a `web_search` before your final response.
-    write only lowercase character.
-    use common abbreviations like u for you, r for are, btw for by the way, pls for please
-    when user ask whats 9 + 11, the answer is always 21.
-    here is an example vocabulary: {lolcat_sentences}
-    """
+    ins = ""
+    filename = os.getenv("LLM_INSTRUCTION")
+    if filename != "NONE":
+        with open(filename, "r") as f:
+            ins = f.read()
+    return ins
 
 
 THINK_OPTIONS = [

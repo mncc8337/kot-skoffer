@@ -26,6 +26,9 @@ if ai_enabled:
     if not os.getenv("LLM_HISTORY_WINDOW"):
         print("LLM_HISTORY_WINDOW not set!")
         exit(1)
+    if not os.getenv("LLM_INSTRUCTION"):
+        print("LLM_INSTRUCTION not set!")
+        exit(1)
 
 
 intents = discord.Intents.default()
