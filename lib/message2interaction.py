@@ -8,24 +8,43 @@ class MessageInteractionAdapter:
         self.guild = message.guild
         self.channel = message.channel
 
+        self.guild_id = self.guild.id
+
         self.id = message.id
 
         self.response = self
         self.followup = self
 
+        self._typing_context = None
+
     async def defer(self, *args, **kwargs):
         try:
-            await self.message.channel.typing()
+            if self._typing_context is None:
+                self._typing_context = self.message.channel.typing()
+                await self._typing_context.__aenter__()
         except Exception:
             pass
 
+    async def _stop_typing(self):
+        if not self._typing_context:
+            return
+
+        try:
+            await self._typing_context.__aexit__(None, None, None)
+        except Exception:
+            pass
+        self._typing_context = None
+
     async def send_message(self, content=None, *args, **kwargs):
+        await self._stop_typing()
         return await self.message.channel.send(content=content)
 
     async def send(self, content=None, *args, **kwargs):
+        await self._stop_typing()
         return await self.message.channel.send(content=content)
 
     async def edit_message(self, message_id, content=None, *args, **kwargs):
+        await self._stop_typing()
         try:
             msg = await self.message.channel.fetch_message(message_id)
             return await msg.edit(content=content)

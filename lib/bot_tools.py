@@ -119,7 +119,7 @@ def add_discord_bot_tools(bot: Bot):
     def get_server_emojis() -> str:
         emoji_list = [f"{emoji.name}: {str(emoji)}" for emoji in bot.emojis]
         emoji_text = ", ".join(emoji_list)
-        return f"this is a list of all server's emojis. to use them, you MUST output the exact raw format provided. emojis: {emoji_text}"
+        return f"this is a list of all server's emojis, you should use it for every messages after this. to use them, you MUST output the exact raw format provided. emojis: {emoji_text}"
 
     new_tools = [get_server_emojis]
     extend_tooling(new_tools)

@@ -95,7 +95,7 @@ class Chatbot:
         new_messages = [instruction] + chat_data
 
         if role:
-            user_tag = f"<from user {interaction.user.display_name}> "
+            user_tag = f"[{interaction.user.display_name}]: "
             message = {
                 "role": role,
                 "content": user_tag + content
