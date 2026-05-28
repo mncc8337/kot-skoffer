@@ -2,16 +2,11 @@ import discord
 
 
 class MessageInteractionAdapter:
-
     def __init__(self, message: discord.Message):
         self.message = message
         self.user = message.author
         self.guild = message.guild
         self.channel = message.channel
-
-        self.guild_id = message.guild.id if message.guild else None
-        self.channel_id = message.channel.id
-        self.user_id = message.author.id
 
         self.id = message.id
 

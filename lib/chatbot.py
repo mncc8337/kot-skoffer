@@ -91,11 +91,18 @@ class Chatbot:
     ):
         chat_data = self.data.get_data(interaction, [])
 
-        message = {"role": role, "content": content}
         instruction = {"role": "system", "content": self.instruction}
-        new_messages = chat_data + [instruction, message]
+        new_messages = [instruction] + chat_data
 
         if role:
+            user_tag = f"<from user {interaction.user.display_name}> "
+            message = {
+                "role": role,
+                "content": user_tag + content
+            }
+
+            new_messages += [message]
+
             chat_data.append(message)
             self._history_slide(chat_data)
 

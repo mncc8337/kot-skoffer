@@ -4,6 +4,7 @@ from discord.ext.commands import GroupCog
 
 import lib.chatbot as chatbot
 from lib.bot_tools import TOOLS_NAME_MAP
+from lib.bot_tools import add_discord_bot_tools
 import json
 import os
 from typing import Optional
@@ -63,6 +64,8 @@ class AiCog(GroupCog, group_name="ai"):
     def __init__(self, bot):
         self.stop_flag = False
         self.bot = bot
+
+        add_discord_bot_tools(bot)
 
         self.aibot = chatbot.Chatbot(
             datapath="data/chatbot_history.json",

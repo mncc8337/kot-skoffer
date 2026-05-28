@@ -1,8 +1,8 @@
 import requests
 import datetime
-import wikipedia
 import urllib.parse
 from ollama import AsyncClient
+from discord.ext.commands import Bot
 import json
 
 
@@ -26,15 +26,6 @@ def lookup_urban_slang(term: str) -> str:
         return f"Definition: {definition}\nExample: {example}"
     except Exception as e:
         return f"Failed to look up slang: {e}"
-
-
-def fetch_wikipedia_summary(query: str) -> str:
-    try:
-        return wikipedia.summary(query, sentences=3)
-    except wikipedia.exceptions.DisambiguationError as e:
-        return f"Too vague. Did you mean one of these? {', '.join(e.options[:5])}"
-    except wikipedia.exceptions.PageError:
-        return f"No Wikipedia page found for '{query}'."
 
 
 def get_weather(location: str) -> str:
@@ -76,7 +67,6 @@ def get_nasa_space_picture() -> str:
 AVAILABLE_TOOLS = [
     get_current_time,
     lookup_urban_slang,
-    fetch_wikipedia_summary,
     get_weather,
     generate_qr_code,
     get_nasa_space_picture,
@@ -85,6 +75,12 @@ AVAILABLE_TOOLS = [
 TOOLS_NAME_MAP = {}
 for tool in AVAILABLE_TOOLS:
     TOOLS_NAME_MAP[tool.__name__] = tool
+
+
+def extend_tooling(new_tools: list):
+    AVAILABLE_TOOLS.extend(new_tools)
+    for tool in new_tools:
+        TOOLS_NAME_MAP[tool.__name__] = tool
 
 
 def add_ollama_web_tools(client: AsyncClient) -> list:
@@ -116,13 +112,22 @@ def add_ollama_web_tools(client: AsyncClient) -> list:
             return f"Failed to fetch webpage: {str(e)}"
 
     new_tools = [web_search, web_fetch]
-    AVAILABLE_TOOLS.extend(new_tools)
-    for tool in new_tools:
-        TOOLS_NAME_MAP[tool.__name__] = tool
+    extend_tooling(new_tools)
+
+
+def add_discord_bot_tools(bot: Bot):
+    def get_server_emojis() -> str:
+        emoji_list = [f"{emoji.name}: {str(emoji)}" for emoji in bot.emojis]
+        emoji_text = ", ".join(emoji_list)
+        return f"this is a list of all server's emojis. to use them, you MUST output the exact raw format provided. emojis: {emoji_text}"
+
+    new_tools = [get_server_emojis]
+    extend_tooling(new_tools)
 
 
 __all__ = [
     "AVAILABLE_TOOLS",
     "TOOLS_NAME_MAP",
     "add_ollama_web_tools",
+    "add_discord_bot_tools",
 ]
