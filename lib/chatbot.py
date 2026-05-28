@@ -25,7 +25,13 @@ class Chatbot:
         self.basemodel = basemodel
         self.max_history = max_history
         self.data = Data(datapath)
+
+        host = "http://localhost:11434"
+        if self.basemodel.lower().endswith("cloud"):
+            host = "https://ollama.com"
+
         self.client = AsyncClient(
+            host=host,
             headers={
                 "Authorization": f"Bearer {ollama_api_key}"
             }
