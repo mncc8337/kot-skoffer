@@ -26,17 +26,20 @@ class Chatbot:
         self.max_history = max_history
         self.data = Data(datapath)
 
-        host = "http://localhost:11434"
-        if self.basemodel.lower().endswith("cloud"):
-            host = "https://ollama.com"
-
-        self.client = AsyncClient(
-            host=host,
-            headers={
-                "Authorization": f"Bearer {ollama_api_key}"
-            }
+        self.local_client = AsyncClient(
+            host="http://localhost:11434",
+            headers={"Authorization": f"Bearer {ollama_api_key}"},
         )
-        bot_tools.add_ollama_web_tools(self.client)
+
+        if self.basemodel.lower().endswith("cloud"):
+            self.chat_client = AsyncClient(
+                host="https://ollama.com",
+                headers={"Authorization": f"Bearer {ollama_api_key}"},
+            )
+        else:
+            self.chat_client = self.local_client
+
+        bot_tools.add_ollama_web_tools(self.chat_client)
 
     def _history_slide(self, chat_data: list):
         if self.max_history < 0:
@@ -48,7 +51,7 @@ class Chatbot:
         self.data.save()
 
     async def exist(self):
-        response = await self.client.list()
+        response = await self.local_client.list()
         models = response.get("models", [])
         for model in models:
             if model.model == f"{self.model}:latest":
@@ -56,7 +59,7 @@ class Chatbot:
         return False
 
     async def create(self, instruction):
-        await self.client.create(
+        await self.local_client.create(
             model=self.model,
             from_=self.basemodel,
             system=instruction,
@@ -85,7 +88,7 @@ class Chatbot:
         elif think in ["low", "medium", "high"]:
             ollama_think = think
 
-        return await self.client.chat(
+        return await self.chat_client.chat(
             model=self.model,
             messages=chat_data,
             think=ollama_think,
@@ -118,7 +121,7 @@ class Chatbot:
         chat_data.clear()
 
     async def get_info(self):
-        info = await self.client.show(self.model)
+        info = await self.local_client.show(self.model)
 
         ret = {
             "name": self.model,
@@ -131,7 +134,7 @@ class Chatbot:
 
         if not clean_details.get("parameter_size"):
             try:
-                base_info = await self.client.show(self.basemodel)
+                base_info = await self.chat_client.show(self.basemodel)
                 base_details = vars(base_info.details)
 
                 fallback_details = {
@@ -140,7 +143,6 @@ class Chatbot:
 
                 clean_details = fallback_details | clean_details
             except Exception:
-
                 pass
 
         return ret | clean_details
