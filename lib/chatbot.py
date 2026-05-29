@@ -27,16 +27,10 @@ class Chatbot:
         instruction,
         ollama_api_key,
         local=None,
-        model="kot-skoffer",
         max_history=-1
     ):
         if local is None:
             local = not basemodel.lower().endswith("cloud")
-
-        if local:
-            self.model = model
-        else:
-            self.model = basemodel
 
         self.basemodel = basemodel
         self.instruction = instruction
@@ -66,21 +60,6 @@ class Chatbot:
     def save_history(self):
         self.data.save()
 
-    async def exist(self):
-        response = await self.client.list()
-        models = response.get("models", [])
-        for model in models:
-            if model.model == f"{self.model}:latest":
-                return True
-        return False
-
-    async def create(self, instruction):
-        await self.client.create(
-            model=self.model,
-            from_=self.basemodel,
-            system=instruction,
-        )
-
     async def chat(
         self,
         content: str,
@@ -95,7 +74,10 @@ class Chatbot:
         new_messages = [instruction] + chat_data
 
         if role:
-            user_tag = f"[{interaction.user.display_name}]: "
+            user_tag = ""
+            if role == "user":
+                user_tag = f"[{interaction.user.display_name}]: "
+
             message = {
                 "role": role,
                 "content": user_tag + content
@@ -116,7 +98,7 @@ class Chatbot:
             ollama_think = think
 
         respond = await self.client.chat(
-            model=self.model,
+            model=self.basemodel,
             messages=new_messages,
             think=ollama_think,
             options={
@@ -141,7 +123,7 @@ class Chatbot:
 
     def add_tool_response(self, content, tool_name, interaction: Interaction):
         self.add_response(
-            {"role": "tool", "content": content, "tool_name": tool_name},
+            {"role": "tool", "tool_name": tool_name, "content": content},
             interaction,
         )
 
@@ -150,28 +132,13 @@ class Chatbot:
         chat_data.clear()
 
     async def get_info(self):
-        info = await self.client.show(self.model)
+        info = await self.client.show(self.basemodel)
 
         ret = {
-            "base_model": self.basemodel,
             "modified_at": str(info.modified_at),
         }
 
         raw_details = vars(info.details)
         clean_details = {key: value for key, value in raw_details.items() if value}
-
-        if not clean_details.get("parameter_size"):
-            try:
-                base_info = await self.client.show(self.basemodel)
-                base_details = vars(base_info.details)
-
-                fallback_details = {
-                    key: value for key, value in base_details.items() if value
-                }
-
-                clean_details = fallback_details | clean_details
-            except Exception:
-
-                pass
 
         return ret | clean_details

@@ -54,7 +54,7 @@ def get_semantic_chunks(text, max_limit=1900):
 
                 if len(line) > max_limit:
                     for i in range(0, len(line), max_limit):
-                        chunks.append(line[i : i + max_limit])
+                        chunks.append(line[i: i + max_limit])
                     current_chunk = ""
                 else:
                     current_chunk = line + "\n"
@@ -84,15 +84,6 @@ class AiCog(GroupCog, group_name="ai"):
             local=os.getenv("LLM_LOCAL_ONLY"),
             max_history=int(os.getenv("LLM_HISTORY_WINDOW")),
         )
-
-    async def cog_load(self):
-        if not os.getenv("LLM_LOCAL_ONLY"):
-            return
-
-        print(f"kot: checking if {self.aibot.model} exists...")
-        if not await self.aibot.exist():
-            print(f"kot: creating model {self.aibot.model}...")
-            await self.aibot.create()
 
     def _format_thought(
         self,
@@ -159,6 +150,7 @@ class AiCog(GroupCog, group_name="ai"):
     ):
         msg = msg.strip()
         if not msg and not continuation:
+            await interaction.response.send_message("cannot send empty message")
             return
 
         stream = await self.aibot.chat(msg, role, think, no_reply, interaction)
@@ -166,10 +158,10 @@ class AiCog(GroupCog, group_name="ai"):
         if no_reply:
             status = "message sent"
             if role == "system":
-                "system instruction sent"
+                status = "system instruction sent"
 
-                await interaction.response.send_message(status)
-                return
+            await interaction.response.send_message(status)
+            return
 
         if not continuation:
             await interaction.response.defer()
