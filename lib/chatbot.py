@@ -2,6 +2,7 @@ from ollama import AsyncClient
 from lib.data_loader import Data
 from discord import Interaction
 import lib.bot_tools as bot_tools
+import datetime
 
 
 def serialize_message(message) -> dict:
@@ -76,7 +77,9 @@ class Chatbot:
         if role:
             user_tag = ""
             if role == "user":
-                user_tag = f"[{interaction.user.display_name}]: "
+                now = datetime.datetime.now()
+                ts = now.strftime("%d/%m %H:%M")
+                user_tag = f"[{interaction.user.display_name}, at {ts}]: "
 
             message = {
                 "role": role,
@@ -116,8 +119,11 @@ class Chatbot:
         self._history_slide(chat_data)
 
     def add_bot_response(self, content, interaction: Interaction):
+        now = datetime.datetime.now()
+        ts = now.strftime("%d/%m %H:%M")
+        tag = f"[at {ts}]: "
         self.add_response(
-            {"role": "assistant", "content": content},
+            {"role": "assistant", "content": tag + content},
             interaction,
         )
 
