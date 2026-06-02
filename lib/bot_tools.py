@@ -103,7 +103,7 @@ def add_ollama_web_tools(client: AsyncClient) -> list:
 
             text = f"Title: {response.title}\n\n{response.content}"
 
-            max_chars = 15000
+            max_chars = 1500
             if len(text) > max_chars:
                 text = text[:max_chars] + "\n\n...[Content truncated due to length]..."
 

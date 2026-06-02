@@ -1,5 +1,6 @@
 from discord import app_commands
 from discord import Interaction
+from discord import Attachment
 from discord.ext.commands import GroupCog
 
 import lib.chatbot as chatbot
@@ -54,7 +55,7 @@ def get_semantic_chunks(text, max_limit=1900):
 
                 if len(line) > max_limit:
                     for i in range(0, len(line), max_limit):
-                        chunks.append(line[i: i + max_limit])
+                        chunks.append(line[i : i + max_limit])
                     current_chunk = ""
                 else:
                     current_chunk = line + "\n"
@@ -78,20 +79,24 @@ class AiCog(GroupCog, group_name="ai"):
 
         add_discord_bot_tools(bot)
 
+        local = os.getenv("LLM_LOCAL_ONLY")
+
+        host = "https://ollama.com"
+        if local:
+            host = os.getenv("OLLAMA_LOCAL_SERVER")
+
         self.aibot = chatbot.Chatbot(
             datapath="data/chatbot_history.json",
             basemodel=os.getenv("LLM_MODEL"),
             instruction=get_instruction(),
             ollama_api_key=os.getenv("OLLAMA_API_KEY"),
-            local=os.getenv("LLM_LOCAL_ONLY"),
+            ollama_server=host,
+            local=local,
             max_history=int(os.getenv("LLM_HISTORY_WINDOW")),
         )
 
     def _format_thought(
-        self,
-        full_thought: str,
-        continuation: bool,
-        is_done: bool = False
+        self, full_thought: str, continuation: bool, is_done: bool = False
     ) -> str:
         display_thought = full_thought.strip()
 
@@ -99,7 +104,7 @@ class AiCog(GroupCog, group_name="ai"):
             tail = display_thought[-1800:]
             cut_index = tail.find("\n")
             if cut_index != -1:
-                tail = tail[cut_index + 1:]
+                tail = tail[cut_index + 1 :]
             display_thought = "... [earlier thoughts truncated] ...\n" + tail
 
         quoted = "\n".join([f"> {line}" for line in display_thought.split("\n")])
@@ -111,11 +116,7 @@ class AiCog(GroupCog, group_name="ai"):
         else:
             return f"**SILENCE, the kot is still thinking**\n{quoted}"[:2000]
 
-    async def _handle_tool_calls(
-        self,
-        msg_data: dict,
-        tool_chunk: list
-    ) -> list:
+    async def _handle_tool_calls(self, msg_data: dict, tool_chunk: list) -> list:
         executed_tools = []
 
         for tool in tool_chunk:
@@ -149,13 +150,14 @@ class AiCog(GroupCog, group_name="ai"):
         think: str,
         no_reply: bool,
         continuation: bool,
+        images: Optional[list[bytes]] = None,
     ):
         msg = msg.strip()
         if not msg and not continuation:
             await interaction.response.send_message("cannot send empty message")
             return
 
-        stream = await self.aibot.chat(msg, role, think, no_reply, interaction)
+        stream = await self.aibot.chat(msg, role, think, no_reply, interaction, images)
 
         if no_reply:
             status = "message sent"
@@ -176,8 +178,7 @@ class AiCog(GroupCog, group_name="ai"):
 
         if is_running.get(interaction_id, False):
             await interaction.response.send_message(
-                "another message is currently being generated",
-                ephemeral=True
+                "another message is currently being generated", ephemeral=True
             )
             return
 
@@ -207,10 +208,7 @@ class AiCog(GroupCog, group_name="ai"):
 
             if tool_chunk:
                 tool_call_data = msg_data
-                executed_tools = await self._handle_tool_calls(
-                    msg_data,
-                    tool_chunk
-                )
+                executed_tools = await self._handle_tool_calls(msg_data, tool_chunk)
 
             full_thought += think_chunk
             full_content += content_chunk
@@ -221,10 +219,7 @@ class AiCog(GroupCog, group_name="ai"):
 
                 # thinking state
                 if full_thought and not full_content:
-                    formatted_msg = self._format_thought(
-                        full_thought,
-                        continuation
-                    )
+                    formatted_msg = self._format_thought(full_thought, continuation)
 
                     if thought_msg is None:
                         thought_msg = await interaction.followup.send(
@@ -256,7 +251,7 @@ class AiCog(GroupCog, group_name="ai"):
                                     message_id=content_msgs[-1].id,
                                     content=chunks[len(content_msgs) - 1],
                                 )
-                            for new_text in chunks[len(content_msgs):]:
+                            for new_text in chunks[len(content_msgs) :]:
                                 new_msg = await interaction.followup.send(
                                     content=new_text
                                 )
@@ -264,8 +259,7 @@ class AiCog(GroupCog, group_name="ai"):
 
                         elif content_msgs:
                             await interaction.followup.edit_message(
-                                message_id=content_msgs[-1].id,
-                                content=chunks[-1]
+                                message_id=content_msgs[-1].id, content=chunks[-1]
                             )
 
         message_empty = not full_content.strip() and not full_thought.strip()
@@ -284,20 +278,9 @@ class AiCog(GroupCog, group_name="ai"):
                 self.aibot.add_tool_response(t_out, t_name, interaction)
 
             # send tool result back to the bot and start new message
-            await self.send_chatbot_message(
-                interaction,
-                "",
-                "",
-                think,
-                False,
-                True
-            )
+            await self.send_chatbot_message(interaction, "", "", think, False, True)
 
-    async def autocomplete_think_option(
-        self,
-        interaction: Interaction,
-        current: str
-    ):
+    async def autocomplete_think_option(self, interaction: Interaction, current: str):
         return [
             app_commands.Choice(name=code, value=code)
             for code in THINK_OPTIONS
@@ -311,6 +294,9 @@ class AiCog(GroupCog, group_name="ai"):
     @app_commands.describe(
         no_reply="Tell the bot to reply to you immediatly or not. default: False"
     )
+    @app_commands.describe(
+        image="Also send the bot an image for it to analyze. default: None"
+    )
     @app_commands.autocomplete(think=autocomplete_think_option)
     async def chat(
         self,
@@ -318,9 +304,20 @@ class AiCog(GroupCog, group_name="ai"):
         msg: str,
         think: Optional[str] = "off",
         no_reply: Optional[bool] = False,
+        image: Optional[Attachment] = None,
     ):
+        images = None
+        if image:
+            if not image.content_type or not image.content_type.startswith("image/"):
+                await interaction.response.send_message(
+                    "only image files is allowed",
+                    ephemeral=True
+                )
+                return
+            images = [await image.read()]
+
         await self.send_chatbot_message(
-            interaction, msg, "user", think, no_reply, False
+            interaction, msg, "user", think, no_reply, False, images
         )
 
     @app_commands.command(

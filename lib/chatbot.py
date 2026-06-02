@@ -2,20 +2,31 @@ from ollama import AsyncClient
 from lib.data_loader import Data
 from discord import Interaction
 import lib.bot_tools as bot_tools
+from typing import Optional
 import datetime
+import base64
 
 
 def serialize_message(message) -> dict:
     if hasattr(message, "model_dump"):
-        return message.model_dump(exclude_none=True)
+        message = message.model_dump(exclude_none=True)
 
     if isinstance(message, dict) and "message" in message:
         msg_obj = message["message"]
         if hasattr(msg_obj, "model_dump"):
-            return msg_obj.model_dump(exclude_none=True)
+            message = msg_obj.model_dump(exclude_none=True)
+
+    def _json_clean(obj):
+        if isinstance(obj, dict):
+            return {k: _json_clean(v) for k, v in obj.items() if v is not None}
+        elif isinstance(obj, list):
+            return [_json_clean(item) for item in obj]
+        elif isinstance(obj, bytes):
+            return base64.b64encode(obj).decode("utf-8")
+        return obj
 
     if isinstance(message, dict):
-        return {k: v for k, v in message.items() if v is not None}
+        return _json_clean(message)
 
     return message
 
@@ -27,6 +38,7 @@ class Chatbot:
         basemodel,
         instruction,
         ollama_api_key,
+        ollama_server,
         local=None,
         max_history=-1
     ):
@@ -38,12 +50,8 @@ class Chatbot:
         self.max_history = max_history
         self.data = Data(datapath)
 
-        host = "https://ollama.com"
-        if local:
-            host = "http://localhost:11434"
-
         self.client = AsyncClient(
-            host=host,
+            host=ollama_server,
             headers={
                 # needed for web_search/fetch
                 # might remove later when i made it fully local
@@ -68,6 +76,7 @@ class Chatbot:
         think: str,
         no_reply: bool,
         interaction: Interaction,
+        images: Optional[list[bytes]] = None,
     ):
         chat_data = self.data.get_data(interaction, [])
 
@@ -86,10 +95,12 @@ class Chatbot:
                 "content": user_tag + content
             }
 
+            if images:
+                message["images"] = images
+
             new_messages += [message]
 
-            chat_data.append(message)
-            self._history_slide(chat_data)
+            self.add_response(message, interaction)
 
         if no_reply:
             return
