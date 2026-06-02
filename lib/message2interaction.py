@@ -37,11 +37,11 @@ class MessageInteractionAdapter:
 
     async def send_message(self, content=None, *args, **kwargs):
         await self._stop_typing()
-        return await self.message.channel.send(content=content)
+        return await self.message.reply(content=content)
 
     async def send(self, content=None, *args, **kwargs):
         await self._stop_typing()
-        return await self.message.channel.send(content=content)
+        return await self.message.reply(content=content)
 
     async def edit_message(self, message_id, content=None, *args, **kwargs):
         await self._stop_typing()

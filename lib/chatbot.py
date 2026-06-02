@@ -119,11 +119,8 @@ class Chatbot:
         self._history_slide(chat_data)
 
     def add_bot_response(self, content, interaction: Interaction):
-        now = datetime.datetime.now()
-        ts = now.strftime("%d/%m %H:%M")
-        tag = f"[at {ts}]: "
         self.add_response(
-            {"role": "assistant", "content": tag + content},
+            {"role": "assistant", "content": content},
             interaction,
         )
 

@@ -71,7 +71,9 @@ def get_semantic_chunks(text, max_limit=1900):
 
 class AiCog(GroupCog, group_name="ai"):
     def __init__(self, bot):
-        self.stop_flag = False
+        self.is_running = {
+            "user": {},
+        }
         self.bot = bot
 
         add_discord_bot_tools(bot)
@@ -163,6 +165,24 @@ class AiCog(GroupCog, group_name="ai"):
             await interaction.response.send_message(status)
             return
 
+        is_running = None
+        interaction_id = None
+        if not interaction.guild_id:
+            is_running = self.is_running["user"]
+            interaction_id = str(interaction.user.id)
+        else:
+            is_running = self.is_running
+            interaction_id = str(interaction.guild_id)
+
+        if is_running.get(interaction_id, False):
+            await interaction.response.send_message(
+                "another message is currently being generated",
+                ephemeral=True
+            )
+            return
+
+        is_running[interaction_id] = True
+
         if not continuation:
             await interaction.response.defer()
 
@@ -177,8 +197,7 @@ class AiCog(GroupCog, group_name="ai"):
         executed_tools = []
 
         async for chunk in stream:
-            if self.stop_flag:
-                self.stop_flag = False
+            if not is_running[interaction_id]:
                 break
 
             msg_data = chunk.get("message", {}) or {}
@@ -257,6 +276,8 @@ class AiCog(GroupCog, group_name="ai"):
             self.aibot.add_bot_response(full_content, interaction)
             self.aibot.save_history()
 
+        is_running[interaction_id] = False
+
         if tool_call_data:
             self.aibot.add_response(tool_call_data, interaction)
             for t_name, t_out in executed_tools:
@@ -309,6 +330,7 @@ class AiCog(GroupCog, group_name="ai"):
     @app_commands.describe(
         no_reply="Tell the bot to reply to you immediatly or not. default: True"
     )
+    @app_commands.autocomplete(think=autocomplete_think_option)
     async def sys(
         self,
         interaction: Interaction,
@@ -322,7 +344,15 @@ class AiCog(GroupCog, group_name="ai"):
 
     @app_commands.command(name="stop", description="stop current response")
     async def stop(self, interaction: Interaction):
-        self.stop_flag = True
+        is_running = None
+        interaction_id = None
+        if not interaction.guild_id:
+            is_running = self.is_running["user"]
+            interaction_id = str(interaction.user.id)
+        else:
+            is_running = self.is_running
+            interaction_id = str(interaction.guild_id)
+        is_running[interaction_id] = False
         await interaction.response.send_message("stop signal sent")
 
     @app_commands.command(name="info", description="info about the chatbot")
