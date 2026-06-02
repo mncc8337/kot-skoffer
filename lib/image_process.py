@@ -1,8 +1,8 @@
 import json
 import random
 import io
-import lib.font
 from PIL import Image, ImageDraw, ImageFont, ImageOps
+import lib.font
 
 
 PALLETE: dict = None
@@ -11,6 +11,21 @@ PALLETE_COUNT: int
 with open("visual_density.json", "r") as f:
     PALLETE = json.load(f)
 PALLETE_COUNT = len(PALLETE["visual_density"])
+
+
+def compress_image(raw_bytes: bytes) -> bytes:
+    return raw_bytes
+    img_obj = Image.open(io.BytesIO(raw_bytes))
+
+    if img_obj.mode != "RGB":
+        img_obj = img_obj.convert("RGB")
+
+    img_obj.thumbnail((1024, 1024), Image.Resampling.LANCZOS)
+
+    output_buffer = io.BytesIO()
+    img_obj.save(output_buffer, format="JPEG", quality=85)
+
+    return output_buffer.getvalue()
 
 
 def reduce_size(image: Image, max_file_size=10 * 1024 * 1024):

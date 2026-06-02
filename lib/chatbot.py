@@ -37,6 +37,7 @@ class Chatbot:
         datapath,
         basemodel,
         instruction,
+        keep_media_turns,
         ollama_api_key,
         ollama_server,
         local=None,
@@ -47,6 +48,7 @@ class Chatbot:
 
         self.basemodel = basemodel
         self.instruction = instruction
+        self.keep_media_turns = keep_media_turns
         self.max_history = max_history
         self.data = Data(datapath)
 
@@ -59,6 +61,17 @@ class Chatbot:
             }
         )
         bot_tools.add_ollama_web_tools(self.client)
+
+        user_chat_data = None
+        for guild_id in self.data.data.keys():
+            if guild_id == "dm":
+                user_chat_data = self.data.data["dm"]
+                continue
+            self.prune_media(self.data.data[guild_id], True)
+        if user_chat_data:
+            for user_id in user_chat_data.keys():
+                self.prune_media(user_chat_data[user_id], True)
+        self.save_history()
 
     def _history_slide(self, chat_data: list):
         if self.max_history < 0:
@@ -96,7 +109,13 @@ class Chatbot:
             }
 
             if images:
-                message["images"] = images
+                # lazy loading because it keeps segfaulting, no idea why
+                from lib.image_process import compress_image
+                message["images"] = []
+                for image in images:
+                    message["images"].append(
+                        compress_image(image)
+                    )
 
             new_messages += [message]
 
@@ -124,10 +143,30 @@ class Chatbot:
 
         return respond
 
+    def prune_media(
+        self,
+        chat_data,
+        full_sweep=False
+    ):
+        turn_count = 0
+        for i in range(1, len(chat_data) + 1):
+            if chat_data[-i]["role"] == "assistant":
+                turn_count += 1
+
+            if turn_count > 2 * self.keep_media_turns and not full_sweep:
+                break
+
+            if turn_count > self.keep_media_turns:
+                if "images" in chat_data[-i]:
+                    chat_data[-i].pop("images")
+                if "audio" in chat_data[-i]:
+                    chat_data[-i].pop("audio")
+
     def add_response(self, message, interaction: Interaction):
         chat_data = self.data.get_data(interaction, [])
         chat_data.append(serialize_message(message))
         self._history_slide(chat_data)
+        self.prune_media(chat_data)
 
     def add_bot_response(self, content, interaction: Interaction):
         self.add_response(

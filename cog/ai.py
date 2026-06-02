@@ -89,6 +89,7 @@ class AiCog(GroupCog, group_name="ai"):
             datapath="data/chatbot_history.json",
             basemodel=os.getenv("LLM_MODEL"),
             instruction=get_instruction(),
+            keep_media_turns=int(os.getenv("LLM_KEEP_MEDIA_TURNS")),
             ollama_api_key=os.getenv("OLLAMA_API_KEY"),
             ollama_server=host,
             local=local,
@@ -153,7 +154,7 @@ class AiCog(GroupCog, group_name="ai"):
         images: Optional[list[bytes]] = None,
     ):
         msg = msg.strip()
-        if not msg and not continuation:
+        if not msg and not continuation and images is None:
             await interaction.response.send_message("cannot send empty message")
             return
 
