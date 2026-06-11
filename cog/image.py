@@ -9,6 +9,7 @@ from PIL import Image
 
 import re
 import io
+import os
 import requests
 import asyncio
 
@@ -34,7 +35,7 @@ class ImageCog(GroupCog, group_name="image"):
                 response = requests.post(
                     "https://" + HOST_SERVICE,
                     files={"file": file},
-                    headers={"User-Agent": "kot-skoffer"}
+                    headers={"User-Agent": os.getenv("USER_AGENT")}
                 )
 
             if response.status_code == 200:

@@ -112,7 +112,7 @@ class RandomCog(GroupCog, group_name="random"):
             page = await asyncio.to_thread(
                 requests.get,
                 "https://catfact.ninja/fact",
-                headers={"User-Agent": "kot-skoffer"},
+                headers={"User-Agent": os.getenv("USER_AGENT")},
                 timeout=10
             )
             res = page.json()
@@ -150,7 +150,7 @@ class RandomCog(GroupCog, group_name="random"):
             page = await asyncio.to_thread(
                 requests.get,
                 f"https://{lang}.wikipedia.org/api/rest_v1/page/random/summary",
-                headers={"User-Agent": "kot-skoffer"},
+                headers={"User-Agent": os.getenv("USER_AGENT")},
                 timeout=10
             )
 

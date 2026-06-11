@@ -6,6 +6,7 @@ from discord.ext.commands import GroupCog
 import json
 import random
 import asyncio
+import os
 from io import BytesIO
 import lib.openmeteo as weatherapi
 import matplotlib.pyplot as plt
@@ -25,17 +26,17 @@ def random_vibrant_color():
     ))
 
 
-async def process_location(location, lat, lon):
+async def process_location(location, lat, lon, user_agent):
     location_name = ""
     if location != "":
-        data = weatherapi.search_location(location, 1, "kot-skoffer")
+        data = weatherapi.search_location(location, 1, user_agent)
         if not data or len(data) < 1:
             return (None, None, None)
         lat = data[0]["lat"]
         lon = data[0]["lon"]
         location_name = data[0]["display_name"]
     else:
-        data = weatherapi.reverse_location(lat, lon, "kot-skoffer")
+        data = weatherapi.reverse_location(lat, lon, user_agent)
         if not data:
             return (None, None, None)
         lat = data["lat"]
@@ -48,13 +49,14 @@ async def process_location(location, lat, lon):
 class WeatherCog(GroupCog, group_name="weather"):
     def __init__(self, bot):
         self.bot = bot
+        self.user_agent = os.getenv("USER_AGENT")
 
     @app_commands.command(
         name="search",
         description="search an location using name"
     )
     async def search(self, interaction: Interaction, name: str):
-        data = weatherapi.search_location(name, limit=10, user_agent="kot-skoffer")
+        data = weatherapi.search_location(name, limit=10, user_agent=self.user_agent)
         if not data or len(data) < 1:
             await interaction.response.send_message("no location found", ephemeral=True)
             return
@@ -116,12 +118,12 @@ class WeatherCog(GroupCog, group_name="weather"):
         lat: float = 0.0,
         lon: float = 0.0,
     ):
-        location_name, lat, lon = await process_location(location, lat, lon)
+        location_name, lat, lon = await process_location(location, lat, lon, self.user_agent)
         if not location_name:
             await interaction.response.send_message("location not found", ephemeral=True)
             return
 
-        api = weatherapi.OpenMeteoWeather("kot-skoffer", lat, lon)
+        api = weatherapi.OpenMeteoWeather(self.user_agent, lat, lon)
         param = [p.strip().lower() for p in parameters.split(",")]
         try:
             api.add_variables("current", *param)
@@ -177,12 +179,12 @@ class WeatherCog(GroupCog, group_name="weather"):
         past_hours: int = 0,
         past_minutes: int = 0,
     ):
-        location_name, lat, lon = await process_location(location, lat, lon)
+        location_name, lat, lon = await process_location(location, lat, lon, self.user_agent)
         if not location_name:
             await interaction.response.send_message("location not found", ephemeral=True)
             return
 
-        api = weatherapi.OpenMeteoWeather("kot-skoffer", lat, lon)
+        api = weatherapi.OpenMeteoWeather(self.user_agent, lat, lon)
         param = [p.strip().lower() for p in parameters.split(",")]
         try:
             api.add_variables(model, *param)
