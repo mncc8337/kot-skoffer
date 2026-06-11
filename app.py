@@ -13,12 +13,16 @@ import cog
 
 load_dotenv()
 discord_token = os.getenv("DISCORD_TOKEN")
+if not discord_token:
+    print("TOKEN not set!")
+    exit(1)
+
 if not os.getenv("USER_AGENT"):
     print("USER_AGENT not set!")
     exit(1)
 
-if not discord_token:
-    print("TOKEN not set!")
+if not os.getenv("FILE_HOSTING_SERVICE"):
+    print("FILE_HOSTING_SERVICE not set!")
     exit(1)
 
 ai_enabled = os.getenv("ENABLE_AI")
