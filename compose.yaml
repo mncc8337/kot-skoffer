@@ -1,0 +1,10 @@
+services:
+  kot-skoffer:
+    build: .
+    container_name: kot-skoffer
+    restart: unless-stopped
+    env_file:
+      - ./.env
+    volumes:
+      - ./data:/app/data
+      - ./images:/app/images
