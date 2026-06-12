@@ -153,7 +153,7 @@ class AiCog(GroupCog, group_name="ai"):
         images: Optional[list[bytes]] = None,
     ):
         msg = msg.strip()
-        if not msg and not continuation:
+        if not msg and not images and not continuation:
             await interaction.response.send_message("cannot send empty message")
             return
 

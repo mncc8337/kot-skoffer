@@ -88,8 +88,6 @@ async def on_message(message):
         if ai_enabled:
             ai_cog = bot.get_cog("AiCog")
             clean_content = message.content.replace(f"<@{bot.user.id}>", "").strip()
-            if not clean_content:
-                clean_content = "meow"
 
             fake_interaction = MessageInteractionAdapter(message)
 
