@@ -12,6 +12,7 @@ import io
 import os
 import requests
 import asyncio
+from urllib.parse import urlparse
 
 
 HEX_REGEX = r'^#([A-Fa-f0-9]{8}|[A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$'
@@ -33,7 +34,7 @@ class ImageCog(GroupCog, group_name="image"):
             response = None
             with open(file_path, "rb") as file:
                 response = requests.post(
-                    "https://" + self.host_service,
+                    self.host_service,
                     files={"file": file},
                     headers={"User-Agent": os.getenv("USER_AGENT")}
                 )
@@ -52,11 +53,12 @@ class ImageCog(GroupCog, group_name="image"):
 
         buffer, _ = await asyncio.to_thread(image_process.reduce_size, image)
         discord_file = discord.File(fp=buffer, filename=name + ".png")
+        domain = urlparse(self.host_service).netloc
 
         image_url = await asyncio.to_thread(self.post_to_host_service, "images/" + name + ".png")
         if image_url:
-            msg = f"""{interaction.user.mention} done processing. sent with full quality via {self.host_service} and low quality (maybe downscaled) via attachment.
-[full image at {self.host_service}]({image_url}).
+            msg = f"""{interaction.user.mention} done processing. sent with full quality via {domain} and low quality (maybe downscaled) via attachment.
+full image at [{domain}]({image_url}).
 **NOTE:** the high quality one will be deleted after 30 days"""
             await interaction.followup.send(msg, file=discord_file)
         else:
