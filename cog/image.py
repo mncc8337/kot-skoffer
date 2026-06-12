@@ -29,33 +29,35 @@ class ImageCog(GroupCog, group_name="image"):
         self.bot = bot
         self.host_service = os.getenv("FILE_HOSTING_SERVICE")
 
-    def post_to_host_service(self, file_path):
+    def post_to_host_service(self, buffer, filename):
         try:
-            response = None
-            with open(file_path, "rb") as file:
-                response = requests.post(
-                    self.host_service,
-                    files={"file": file},
-                    headers={"User-Agent": os.getenv("USER_AGENT")}
-                )
+            response = requests.post(
+                self.host_service,
+                files={"file": (filename, buffer, "image/png")},
+                headers={"User-Agent": os.getenv("USER_AGENT")}
+            )
 
             if response.status_code == 200:
                 return response.text.strip()
             else:
-                print(f"kot: failed to post image {file_path}. {response.text}")
+                print(f"kot: failed to post image {filename}. {response.text}")
                 return None
         except Exception as e:
-            print(f"kot: failed to post image {file_path}. {e}")
+            print(f"kot: failed to post image {filename}. {e}")
             return None
 
     async def send_high_quality_image(self, interaction: Interaction, image: Image, name: str):
-        await asyncio.to_thread(image.save, "images/" + name + ".png", format="PNG")
-
-        buffer, _ = await asyncio.to_thread(image_process.reduce_size, image)
-        discord_file = discord.File(fp=buffer, filename=name + ".png")
+        buffer, _ = await asyncio.to_thread(
+            image_process.reduce_size,
+            image
+        )
         domain = urlparse(self.host_service).netloc
 
-        image_url = await asyncio.to_thread(self.post_to_host_service, "images/" + name + ".png")
+        image_url = await asyncio.to_thread(self.post_to_host_service, buffer, name + ".png")
+
+        buffer.seek(0)
+        discord_file = discord.File(fp=buffer, filename=name + ".png")
+
         if image_url:
             msg = f"""{interaction.user.mention} done processing. sent with full quality via {domain} and low quality (maybe downscaled) via attachment.
 full image at [{domain}]({image_url}).

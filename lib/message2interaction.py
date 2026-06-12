@@ -8,7 +8,8 @@ class MessageInteractionAdapter:
         self.guild = message.guild
         self.channel = message.channel
 
-        self.guild_id = self.guild.id
+        if self.guild:
+            self.guild_id = self.guild.id
 
         self.id = message.id
 

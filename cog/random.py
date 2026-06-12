@@ -70,41 +70,6 @@ class RandomCog(GroupCog, group_name="random"):
     async def name(self, interaction: Interaction):
         await interaction.response.send_message(await random_name.generate_human_name())
 
-    @app_commands.command(name="image", description="get random image")
-    async def image(self, interaction: Interaction):
-        pwd = "./images"
-        item: str = ""
-
-        def listdir(path):
-            lst = os.listdir(path)
-            new_lst = []
-            for item in lst:
-                _, ext = os.path.splitext(item)
-                if (
-                    ext in (".png", ".jpg", ".jpeg", ".webp", ".gif")
-                    or os.path.isdir(os.path.join(path, item))
-                ):
-                    new_lst.append(item)
-
-            return new_lst
-
-        while (
-            item == ""
-            or (
-                len(listdir(pwd))
-                and os.path.isdir(os.path.join(pwd, item))
-            )
-        ):
-            pwd = os.path.join(pwd, item)
-            item = random.choice(listdir(pwd))
-
-        if item == "":
-            await interaction.response.send_message("no image to choose")
-            return
-
-        file = discord.File(os.path.join(pwd, item))
-        await interaction.response.send_message(file=file)
-
     @app_commands.command(name="catfact", description="get random cat fact")
     async def catfact(self, interaction: Interaction):
         fact = ""
