@@ -6,7 +6,7 @@ bad discord bot
 - stupid image editor 🔥
 ## running
 ### install stuffs
-`pip install -v requirements.txt`
+`pip install -r requirements.txt`
 > if it complains about `audioop` then `pip install audioop-lts`  
 > this bot use ollama for llm stuff so make sure to install it and set a model in .env
 ### env
