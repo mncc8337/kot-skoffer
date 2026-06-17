@@ -8,7 +8,7 @@ class MessageInteractionAdapter:
         self.guild = message.guild
         self.channel = message.channel
 
-        if hasattr(self.guild, id):
+        if hasattr(self.guild, "id"):
             self.guild_id = self.guild.id
         else:
             self.guild_id = None
