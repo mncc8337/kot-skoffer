@@ -1,0 +1,11 @@
+.git
+Dockerfile
+venv
+__pycache__
+tool
+images
+data
+.env
+*.pyc
+*.pyo
+*.pyd

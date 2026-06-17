@@ -9,12 +9,13 @@ from PIL import Image
 
 import re
 import io
+import os
 import requests
 import asyncio
+from urllib.parse import urlparse
 
 
 HEX_REGEX = r'^#([A-Fa-f0-9]{8}|[A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$'
-HOST_SERVICE = "0x0.st"
 
 
 async def send_image(interaction: Interaction, image: Image, name: str):
@@ -26,36 +27,40 @@ async def send_image(interaction: Interaction, image: Image, name: str):
 class ImageCog(GroupCog, group_name="image"):
     def __init__(self, bot):
         self.bot = bot
+        self.host_service = os.getenv("FILE_HOSTING_SERVICE")
 
-    def post_to_host_service(self, file_path):
+    def post_to_host_service(self, buffer, filename):
         try:
-            response = None
-            with open(file_path, "rb") as file:
-                response = requests.post(
-                    "https://" + HOST_SERVICE,
-                    files={"file": file},
-                    headers={"User-Agent": "kot-skoffer"}
-                )
+            response = requests.post(
+                self.host_service,
+                files={"file": (filename, buffer, "image/png")},
+                headers={"User-Agent": os.getenv("USER_AGENT")}
+            )
 
             if response.status_code == 200:
                 return response.text.strip()
             else:
-                print(f"kot: failed to post image {file_path}. {response.text}")
+                print(f"kot: failed to post image {filename}. {response.text}")
                 return None
         except Exception as e:
-            print(f"kot: failed to post image {file_path}. {e}")
+            print(f"kot: failed to post image {filename}. {e}")
             return None
 
     async def send_high_quality_image(self, interaction: Interaction, image: Image, name: str):
-        await asyncio.to_thread(image.save, "images/" + name + ".png", format="PNG")
+        buffer, _ = await asyncio.to_thread(
+            image_process.reduce_size,
+            image
+        )
+        domain = urlparse(self.host_service).netloc
 
-        buffer, _ = await asyncio.to_thread(image_process.reduce_size, image)
+        image_url = await asyncio.to_thread(self.post_to_host_service, buffer, name + ".png")
+
+        buffer.seek(0)
         discord_file = discord.File(fp=buffer, filename=name + ".png")
 
-        image_url = await asyncio.to_thread(self.post_to_host_service, "images/" + name + ".png")
         if image_url:
-            msg = f"""{interaction.user.mention} done processing. sent with full quality via {HOST_SERVICE} and low quality (maybe downscaled) via attachment.
-[full image at {HOST_SERVICE}]({image_url}).
+            msg = f"""{interaction.user.mention} done processing. sent with full quality via {domain} and low quality (maybe downscaled) via attachment.
+full image at [{domain}]({image_url}).
 **NOTE:** the high quality one will be deleted after 30 days"""
             await interaction.followup.send(msg, file=discord_file)
         else:
