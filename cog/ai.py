@@ -195,10 +195,11 @@ class AiCog(GroupCog, group_name="ai"):
         server_state["is_generating"] = True
 
         image_bytes = []
-        for image in images:
-            if image.content_type and image.content_type.startswith("image/"):
-                file_bytes = await image.read()
-                image_bytes.append(file_bytes)
+        if images is not None:
+            for image in images:
+                if image.content_type and image.content_type.startswith("image/"):
+                    file_bytes = await image.read()
+                    image_bytes.append(file_bytes)
         if len(image_bytes) == 0:
             image_bytes = None
 
