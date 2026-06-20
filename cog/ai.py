@@ -6,6 +6,7 @@ from discord.ext.commands import GroupCog
 import lib.chatbot as chatbot
 from lib.bot_tools import TOOLS_NAME_MAP
 from lib.bot_tools import add_discord_bot_tools
+import asyncio
 import json
 import os
 from typing import Optional
@@ -72,7 +73,7 @@ def get_semantic_chunks(text, max_limit=1900):
 
 class AiCog(GroupCog, group_name="ai"):
     def __init__(self, bot):
-        self.is_running = {
+        self.interaction_queue = {
             "user": {},
         }
         self.bot = bot
@@ -151,42 +152,65 @@ class AiCog(GroupCog, group_name="ai"):
         think: str,
         no_reply: bool,
         continuation: bool,
-        images: Optional[list[bytes]] = None,
+        images: Optional[list[Attachment]] = None,
     ):
         msg = msg.strip()
         if not msg and not continuation and images is None:
             await interaction.response.send_message("cannot send empty message")
             return
 
-        stream = await self.aibot.chat(msg, role, think, no_reply, interaction, images)
+        server_states = None
+        server_id = None
+        if not interaction.guild_id:
+            server_states = self.interaction_queue["user"]
+            server_id = str(interaction.user.id)
+        else:
+            server_states = self.interaction_queue
+            server_id = str(interaction.guild_id)
+
+        server_state = server_states.get(
+            server_id,
+            {
+                "is_generating": False,
+                "queue": [],
+            }
+        )
+
+        if not continuation:
+            await interaction.response.defer(thinking=True)
+
+            server_state["queue"].append((
+                interaction,
+                msg,
+                role,
+                think,
+                no_reply,
+                True,
+                images
+            ))
+            server_states[server_id] = server_state
+            if server_state["is_generating"]:
+                return
+
+        server_state["is_generating"] = True
+
+        image_bytes = []
+        for image in images:
+            if image.content_type and image.content_type.startswith("image/"):
+                file_bytes = await image.read()
+                image_bytes.append(file_bytes)
+        if len(image_bytes) == 0:
+            image_bytes = None
+
+        stream = await self.aibot.chat(msg, role, think, no_reply, interaction, image_bytes)
 
         if no_reply:
             status = "message sent"
             if role == "system":
                 status = "system instruction sent"
 
-            await interaction.response.send_message(status)
+            await interaction.followup.send(status)
             return
-
-        is_running = None
-        interaction_id = None
-        if not interaction.guild_id:
-            is_running = self.is_running["user"]
-            interaction_id = str(interaction.user.id)
-        else:
-            is_running = self.is_running
-            interaction_id = str(interaction.guild_id)
-
-        if is_running.get(interaction_id, False):
-            await interaction.response.send_message(
-                "another message is currently being generated", ephemeral=True
-            )
-            return
-
-        is_running[interaction_id] = True
-
-        if not continuation:
-            await interaction.response.defer()
 
         full_content = ""
         full_thought = ""
@@ -199,7 +223,7 @@ class AiCog(GroupCog, group_name="ai"):
         executed_tools = []
 
         async for chunk in stream:
-            if not is_running[interaction_id]:
+            if not server_state["is_generating"]:
                 break
 
             msg_data = chunk.get("message", {}) or {}
@@ -271,15 +295,35 @@ class AiCog(GroupCog, group_name="ai"):
             self.aibot.add_bot_response(full_content, interaction)
             self.aibot.save_history()
 
-        is_running[interaction_id] = False
-
         if tool_call_data:
             self.aibot.add_response(tool_call_data, interaction)
             for t_name, t_out in executed_tools:
                 self.aibot.add_tool_response(t_out, t_name, interaction)
 
             # send tool result back to the bot and start new message
-            await self.send_chatbot_message(interaction, "", "", think, False, True)
+            # also start a new task to allow python to clean the stack
+            asyncio.create_task(
+                self.send_chatbot_message(
+                    interaction,
+                    "",
+                    "",
+                    think,
+                    False,
+                    True
+                )
+            )
+        else:
+            server_state["queue"].pop(0)
+            server_state["is_generating"] = False
+
+            if len(server_state["queue"]) > 0:
+                next_interaction = server_state["queue"][0]
+                asyncio.create_task(
+                    self.send_chatbot_message(*next_interaction)
+                )
+            else:
+                if server_id in server_states:
+                    del server_states[server_id]
 
     async def autocomplete_think_option(self, interaction: Interaction, current: str):
         return [
@@ -342,15 +386,24 @@ class AiCog(GroupCog, group_name="ai"):
 
     @app_commands.command(name="stop", description="stop current response")
     async def stop(self, interaction: Interaction):
-        is_running = None
-        interaction_id = None
+        server_states = None
+        server_id = None
         if not interaction.guild_id:
-            is_running = self.is_running["user"]
-            interaction_id = str(interaction.user.id)
+            server_states = self.interaction_queue["user"]
+            server_id = str(interaction.user.id)
         else:
-            is_running = self.is_running
-            interaction_id = str(interaction.guild_id)
-        is_running[interaction_id] = False
+            server_states = self.interaction_queue
+            server_id = str(interaction.guild_id)
+
+        server_state = server_states.get(
+            server_id,
+            {
+                "is_generating": False,
+                "queue": [],
+            }
+        )
+
+        server_state["is_generating"] = False
         await interaction.response.send_message("stop signal sent")
 
     @app_commands.command(name="info", description="info about the chatbot")

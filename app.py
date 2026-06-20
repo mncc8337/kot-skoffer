@@ -93,13 +93,7 @@ async def on_message(message):
 
             images = None
             if getattr(message, "attachments", None):
-                images = []
-                for attachment in message.attachments:
-                    if attachment.content_type and attachment.content_type.startswith("image/"):
-                        file_bytes = await attachment.read()
-                        images.append(file_bytes)
-                if not images:
-                    images = None
+                images = message.attachments
 
             await ai_cog.send_chatbot_message(
                 interaction=fake_interaction,
