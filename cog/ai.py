@@ -194,25 +194,6 @@ class AiCog(GroupCog, group_name="ai"):
 
         server_state["is_generating"] = True
 
-        image_bytes = []
-        if images is not None:
-            for image in images:
-                if image.content_type and image.content_type.startswith("image/"):
-                    file_bytes = await image.read()
-                    image_bytes.append(file_bytes)
-        if len(image_bytes) == 0:
-            image_bytes = None
-
-        stream = await self.aibot.chat(msg, role, think, no_reply, interaction, image_bytes)
-
-        if no_reply:
-            status = "message sent"
-            if role == "system":
-                status = "system instruction sent"
-
-            await interaction.followup.send(status)
-            return
-
         full_content = ""
         full_thought = ""
         update_buffer = 0
@@ -223,97 +204,123 @@ class AiCog(GroupCog, group_name="ai"):
         tool_call_data = {}
         executed_tools = []
 
-        async for chunk in stream:
-            if not server_state["is_generating"]:
-                break
+        try:
+            image_bytes = []
+            if images is not None:
+                for image in images:
+                    if image.content_type and image.content_type.startswith("image/"):
+                        file_bytes = await image.read()
+                        image_bytes.append(file_bytes)
+            if len(image_bytes) == 0:
+                image_bytes = None
 
-            msg_data = chunk.get("message", {}) or {}
-            think_chunk = msg_data.get("thinking", "") or ""
-            content_chunk = msg_data.get("content", "") or ""
-            tool_chunk = msg_data.get("tool_calls", []) or []
+            stream = await self.aibot.chat(msg, role, think, no_reply, interaction, image_bytes)
 
-            if tool_chunk:
-                tool_call_data = msg_data
-                executed_tools = await self._handle_tool_calls(msg_data, tool_chunk)
+            if no_reply:
+                status = "message sent"
+                if role == "system":
+                    status = "system instruction sent"
 
-            full_thought += think_chunk
-            full_content += content_chunk
-            update_buffer += len(think_chunk) + len(content_chunk)
+                await interaction.followup.send(status)
+                return
 
-            if update_buffer > 20 or chunk.get("done", False):
-                update_buffer = 0
+            async for chunk in stream:
+                if not server_state["is_generating"]:
+                    break
 
-                # thinking state
-                if full_thought and not full_content:
-                    formatted_msg = self._format_thought(full_thought, continuation)
+                msg_data = chunk.get("message", {}) or {}
+                think_chunk = msg_data.get("thinking", "") or ""
+                content_chunk = msg_data.get("content", "") or ""
+                tool_chunk = msg_data.get("tool_calls", []) or []
 
-                    if thought_msg is None:
-                        thought_msg = await interaction.followup.send(
-                            content=formatted_msg
-                        )
-                    else:
-                        await interaction.followup.edit_message(
-                            message_id=thought_msg.id, content=formatted_msg
-                        )
+                if tool_chunk:
+                    tool_call_data = msg_data
+                    executed_tools = await self._handle_tool_calls(msg_data, tool_chunk)
 
-                # generating response state
-                elif full_content:
-                    # finalize thought message
-                    if thought_msg and not content_msgs:
-                        final_thought = self._format_thought(
-                            full_thought, continuation, is_done=True
-                        )
-                        await interaction.followup.edit_message(
-                            message_id=thought_msg.id, content=final_thought
-                        )
+                full_thought += think_chunk
+                full_content += content_chunk
+                update_buffer += len(think_chunk) + len(content_chunk)
 
-                    display_content = full_content.strip()
-                    if display_content:
-                        chunks = get_semantic_chunks(display_content)
+                if update_buffer > 20 or chunk.get("done", False):
+                    update_buffer = 0
 
-                        if len(chunks) > len(content_msgs):
-                            if content_msgs:
-                                await interaction.followup.edit_message(
-                                    message_id=content_msgs[-1].id,
-                                    content=chunks[len(content_msgs) - 1],
-                                )
-                            for new_text in chunks[len(content_msgs) :]:
-                                new_msg = await interaction.followup.send(
-                                    content=new_text
-                                )
-                                content_msgs.append(new_msg)
+                    # thinking state
+                    if full_thought and not full_content:
+                        formatted_msg = self._format_thought(full_thought, continuation)
 
-                        elif content_msgs:
+                        if thought_msg is None:
+                            thought_msg = await interaction.followup.send(
+                                content=formatted_msg
+                            )
+                        else:
                             await interaction.followup.edit_message(
-                                message_id=content_msgs[-1].id, content=chunks[-1]
+                                message_id=thought_msg.id, content=formatted_msg
                             )
 
-        message_empty = not full_content.strip() and not full_thought.strip()
-        if message_empty and not tool_call_data:
-            await interaction.followup.send("*(the cat is silent meow meow)*")
+                    # generating response state
+                    elif full_content:
+                        # finalize thought message
+                        if thought_msg and not content_msgs:
+                            final_thought = self._format_thought(
+                                full_thought, continuation, is_done=True
+                            )
+                            await interaction.followup.edit_message(
+                                message_id=thought_msg.id, content=final_thought
+                            )
 
-        if full_content.strip() or tool_call_data:
-            self.aibot.add_bot_response(full_content, interaction)
-            self.aibot.save_history()
+                        display_content = full_content.strip()
+                        if display_content:
+                            chunks = get_semantic_chunks(display_content)
 
-        if tool_call_data:
-            self.aibot.add_response(tool_call_data, interaction)
-            for t_name, t_out in executed_tools:
-                self.aibot.add_tool_response(t_out, t_name, interaction)
+                            if len(chunks) > len(content_msgs):
+                                if content_msgs:
+                                    await interaction.followup.edit_message(
+                                        message_id=content_msgs[-1].id,
+                                        content=chunks[len(content_msgs) - 1],
+                                    )
+                                for new_text in chunks[len(content_msgs) :]:
+                                    new_msg = await interaction.followup.send(
+                                        content=new_text
+                                    )
+                                    content_msgs.append(new_msg)
 
-            # send tool result back to the bot and start new message
-            # also start a new task to allow python to clean the stack
-            asyncio.create_task(
-                self.send_chatbot_message(
-                    interaction,
-                    "",
-                    "",
-                    think,
-                    False,
-                    True
+                            elif content_msgs:
+                                await interaction.followup.edit_message(
+                                    message_id=content_msgs[-1].id, content=chunks[-1]
+                                )
+
+            message_empty = not full_content.strip() and not full_thought.strip()
+            if message_empty and not tool_call_data:
+                await interaction.followup.send("*(the cat is silent meow meow)*")
+
+            if full_content.strip() or tool_call_data:
+                self.aibot.add_bot_response(full_content, interaction)
+                self.aibot.save_history()
+
+            if tool_call_data:
+                self.aibot.add_response(tool_call_data, interaction)
+                for t_name, t_out in executed_tools:
+                    self.aibot.add_tool_response(t_out, t_name, interaction)
+
+                # send tool result back to the bot and start new message
+                # also start a new task to allow python to clean the stack
+                asyncio.create_task(
+                    self.send_chatbot_message(
+                        interaction,
+                        "",
+                        "",
+                        think,
+                        False,
+                        True
+                    )
                 )
-            )
-        else:
+        except Exception as e:
+            await interaction.followup.send("got an error while crearing response.")
+            print("kot: got an exceprion while crearing bot response:", e)
+        finally:
+            if tool_call_data:
+                return
+
             server_state["queue"].pop(0)
             server_state["is_generating"] = False
 
@@ -360,7 +367,7 @@ class AiCog(GroupCog, group_name="ai"):
                     ephemeral=True
                 )
                 return
-            images = [await image.read()]
+            images = [image]
 
         await self.send_chatbot_message(
             interaction, msg, "user", think, no_reply, False, images
