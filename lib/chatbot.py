@@ -86,6 +86,7 @@ class Chatbot:
         self,
         content: str,
         role: str,
+        additional_instruction: str,
         think: str,
         no_reply: bool,
         interaction: Interaction,
@@ -93,7 +94,10 @@ class Chatbot:
     ):
         chat_data = self.data.get_data(interaction, [])
 
-        instruction = {"role": "system", "content": self.instruction}
+        instruction = {
+            "role": "system",
+            "content": self.instruction + '\n' + additional_instruction
+        }
         new_messages = [instruction] + chat_data
 
         if role:

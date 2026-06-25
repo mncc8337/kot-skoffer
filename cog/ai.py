@@ -5,7 +5,6 @@ from discord.ext.commands import GroupCog
 
 import lib.chatbot as chatbot
 from lib.bot_tools import TOOLS_NAME_MAP
-from lib.bot_tools import add_discord_bot_tools
 import asyncio
 import json
 import os
@@ -20,6 +19,40 @@ def get_instruction():
         with open(filename, "r") as f:
             ins = f.read()
     return ins
+
+
+def get_server_emojis(interaction: Interaction) -> str:
+    if not interaction.guild or not interaction.guild.emojis:
+        return ""
+
+    emoji_list = [f"{emoji.name}: {str(emoji)}" for emoji in interaction.guild.emojis]
+    emoji_text = ", ".join(emoji_list)
+    return f"this is a list of all server's emojis, you should use it for every messages after this. to use them, you MUST output the exact raw format provided. emojis: {emoji_text}"
+
+
+def get_channel_info(interaction: Interaction) -> str:
+    if interaction.channel and hasattr(interaction.channel, 'name'):
+        return f"You are currently chatting in a channel named #{interaction.channel.name}."
+    return "You are currently in a Direct Message (DM)."
+
+
+def get_user_roles(interaction: Interaction) -> str:
+    if not interaction.guild:
+        return ""
+
+    roles = [role.name for role in interaction.user.roles if role.name != "@everyone"]
+    if roles:
+        return f"user {interaction.user.name} has the following roles in this server: {', '.join(roles)}."
+    return ""
+
+
+def get_per_server_instruction(interaction: Interaction):
+    funcs = [
+        get_channel_info(interaction),
+        get_user_roles(interaction),
+        get_server_emojis(interaction),
+    ]
+    return '\n'.join(f for f in funcs if f)
 
 
 THINK_OPTIONS = [
@@ -77,8 +110,6 @@ class AiCog(GroupCog, group_name="ai"):
             "user": {},
         }
         self.bot = bot
-
-        add_discord_bot_tools(bot)
 
         local = os.getenv("LLM_LOCAL_ONLY")
 
@@ -214,7 +245,8 @@ class AiCog(GroupCog, group_name="ai"):
             if len(image_bytes) == 0:
                 image_bytes = None
 
-            stream = await self.aibot.chat(msg, role, think, no_reply, interaction, image_bytes)
+            additional_instruction = get_per_server_instruction(interaction)
+            stream = await self.aibot.chat(msg, role, additional_instruction, think, no_reply, interaction, image_bytes)
 
             if no_reply:
                 status = "message sent"
@@ -316,7 +348,7 @@ class AiCog(GroupCog, group_name="ai"):
                 )
         except Exception as e:
             await interaction.followup.send("got an error while crearing response.")
-            print("kot: got an exceprion while crearing bot response:", e)
+            print("kot: got an exception while creating bot response:", e)
         finally:
             if tool_call_data:
                 return
