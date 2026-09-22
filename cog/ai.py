@@ -31,7 +31,7 @@ def get_server_emojis(interaction: Interaction) -> str:
 
 
 def get_channel_info(interaction: Interaction) -> str:
-    if interaction.channel and hasattr(interaction.channel, 'name'):
+    if interaction.channel and hasattr(interaction.channel, "name"):
         return f"You are currently chatting in a channel named #{interaction.channel.name}."
     return "You are currently in a Direct Message (DM)."
 
@@ -52,7 +52,7 @@ def get_per_server_instruction(interaction: Interaction):
         get_user_roles(interaction),
         get_server_emojis(interaction),
     ]
-    return '\n'.join(f for f in funcs if f)
+    return "\n".join(f for f in funcs if f)
 
 
 THINK_OPTIONS = [
@@ -204,21 +204,15 @@ class AiCog(GroupCog, group_name="ai"):
             {
                 "is_generating": False,
                 "queue": [],
-            }
+            },
         )
 
         if not continuation:
             await interaction.response.defer(thinking=True)
 
-            server_state["queue"].append((
-                interaction,
-                msg,
-                role,
-                think,
-                no_reply,
-                True,
-                images
-            ))
+            server_state["queue"].append(
+                (interaction, msg, role, think, no_reply, True, images)
+            )
             server_states[server_id] = server_state
             if server_state["is_generating"]:
                 return
@@ -246,7 +240,15 @@ class AiCog(GroupCog, group_name="ai"):
                 image_bytes = None
 
             additional_instruction = get_per_server_instruction(interaction)
-            stream = await self.aibot.chat(msg, role, additional_instruction, think, no_reply, interaction, image_bytes)
+            stream = await self.aibot.chat(
+                msg,
+                role,
+                additional_instruction,
+                think,
+                no_reply,
+                interaction,
+                image_bytes,
+            )
 
             if no_reply:
                 status = "message sent"
@@ -327,7 +329,6 @@ class AiCog(GroupCog, group_name="ai"):
 
             if full_content.strip() or tool_call_data:
                 self.aibot.add_bot_response(full_content, interaction)
-                self.aibot.save_history()
 
             if tool_call_data:
                 self.aibot.add_response(tool_call_data, interaction)
@@ -337,33 +338,22 @@ class AiCog(GroupCog, group_name="ai"):
                 # send tool result back to the bot and start new message
                 # also start a new task to allow python to clean the stack
                 asyncio.create_task(
-                    self.send_chatbot_message(
-                        interaction,
-                        "",
-                        "",
-                        think,
-                        False,
-                        True
-                    )
+                    self.send_chatbot_message(interaction, "", "", think, False, True)
                 )
         except Exception as e:
             await interaction.followup.send("got an error while crearing response.")
             print("kot: got an exception while creating bot response:", e)
         finally:
-            if tool_call_data:
-                return
+            if not tool_call_data:
+                server_state["queue"].pop(0)
+                server_state["is_generating"] = False
 
-            server_state["queue"].pop(0)
-            server_state["is_generating"] = False
-
-            if len(server_state["queue"]) > 0:
-                next_interaction = server_state["queue"][0]
-                asyncio.create_task(
-                    self.send_chatbot_message(*next_interaction)
-                )
-            else:
-                if server_id in server_states:
-                    del server_states[server_id]
+                if len(server_state["queue"]) > 0:
+                    next_interaction = server_state["queue"][0]
+                    asyncio.create_task(self.send_chatbot_message(*next_interaction))
+                else:
+                    if server_id in server_states:
+                        del server_states[server_id]
 
     async def autocomplete_think_option(self, interaction: Interaction, current: str):
         return [
@@ -395,8 +385,7 @@ class AiCog(GroupCog, group_name="ai"):
         if image:
             if not image.content_type or not image.content_type.startswith("image/"):
                 await interaction.response.send_message(
-                    "only image files is allowed",
-                    ephemeral=True
+                    "only image files is allowed", ephemeral=True
                 )
                 return
             images = [image]
@@ -440,7 +429,7 @@ class AiCog(GroupCog, group_name="ai"):
             {
                 "is_generating": False,
                 "queue": [],
-            }
+            },
         )
 
         server_state["is_generating"] = False
@@ -458,5 +447,4 @@ class AiCog(GroupCog, group_name="ai"):
     @app_commands.command(name="clear", description="clear chatbot history")
     async def clear(self, interaction: Interaction):
         self.aibot.clear_history(interaction)
-        self.aibot.save_history()
         await interaction.response.send_message("chat history cleared")

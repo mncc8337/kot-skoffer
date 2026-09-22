@@ -31,7 +31,7 @@ async def generate_cat_name():
 
                 random_name = ""
                 for word in random.sample(words, random.randint(3, 5)):
-                    lbound = random.randint(0, len(word)-3)
+                    lbound = random.randint(0, len(word) - 3)
                     hbound = lbound + random.randint(1, len(word) - lbound)
                     random_name += word[lbound:hbound]
 

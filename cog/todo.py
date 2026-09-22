@@ -17,7 +17,6 @@ class TodoCog(GroupCog, group_name="todo"):
     async def add(self, interaction: Interaction, *, todo: str):
         self.todo_list.add(todo, interaction)
         await interaction.response.send_message(self.todo_list.text(interaction))
-        self.todo_list.save()
 
     @app_commands.command(name="check", description="check an item in todo list")
     @app_commands.describe(id="the number at the start of every todo")
@@ -25,7 +24,6 @@ class TodoCog(GroupCog, group_name="todo"):
         if self.todo_list.valid_item(id, interaction):
             self.todo_list.toggle(id, interaction)
             await interaction.response.send_message(self.todo_list.text(interaction))
-            self.todo_list.save()
         else:
             await interaction.response.send_message("item not exists")
 
@@ -35,6 +33,5 @@ class TodoCog(GroupCog, group_name="todo"):
         if self.todo_list.valid_item(id, interaction):
             self.todo_list.remove(id, interaction)
             await interaction.response.send_message(self.todo_list.text(interaction))
-            self.todo_list.save()
         else:
             await interaction.response.send_message("item not exists")

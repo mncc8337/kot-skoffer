@@ -50,7 +50,7 @@ class Chatbot:
         self.instruction = instruction
         self.keep_media_turns = keep_media_turns
         self.max_history = max_history
-        self.data = Data(datapath)
+        self.db = Data(datapath)
 
         self.client = AsyncClient(
             host=ollama_server,
@@ -62,25 +62,16 @@ class Chatbot:
         )
         bot_tools.add_ollama_web_tools(self.client)
 
-        user_chat_data = None
-        for guild_id in self.data.data.keys():
-            if guild_id == "dm":
-                user_chat_data = self.data.data["dm"]
-                continue
-            self.prune_media(self.data.data[guild_id], True)
-        if user_chat_data:
-            for user_id in user_chat_data.keys():
-                self.prune_media(user_chat_data[user_id], True)
-        self.save_history()
+        # for guild_id in self.db.servers.keys():
+        #     self.prune_media(self.db.servers[guild_id], True)
+        # for user_id in self.db.users.keys():
+        #     self.prune_media(self.db.users[user_id], True)
 
     def _history_slide(self, chat_data: list):
         if self.max_history < 0:
             return
         while len(chat_data) > self.max_history:
             chat_data.pop(0)
-
-    def save_history(self):
-        self.data.save()
 
     async def chat(
         self,
@@ -92,7 +83,8 @@ class Chatbot:
         interaction: Interaction,
         images: Optional[list[bytes]] = None,
     ):
-        chat_data = self.data.get_data(interaction, [])
+        data, _, _ = self.db.get_data(interaction, {"messages": []})
+        chat_data = data["messages"]
 
         instruction = {
             "role": "system",
@@ -167,10 +159,15 @@ class Chatbot:
                     chat_data[-i].pop("audio")
 
     def add_response(self, message, interaction: Interaction):
-        chat_data = self.data.get_data(interaction, [])
+        data, target_id, target_type = self.db.get_data(
+            interaction,
+            {"messages": []}
+        )
+        chat_data = data["messages"]
         chat_data.append(serialize_message(message))
         self._history_slide(chat_data)
         self.prune_media(chat_data)
+        self.db.save_data(data, target_id, target_type)
 
     def add_bot_response(self, content, interaction: Interaction):
         self.add_response(
@@ -185,8 +182,12 @@ class Chatbot:
         )
 
     def clear_history(self, interaction: Interaction):
-        chat_data = self.data.get_data(interaction, [])
-        chat_data.clear()
+        data, target_id, target_type = self.db.get_data(
+            interaction,
+            {"messages": []}
+        )["messages"]
+        data["messages"].clear()
+        self.db.save_data(data, target_id, target_type)
 
     async def get_info(self):
         info = await self.client.show(self.basemodel)

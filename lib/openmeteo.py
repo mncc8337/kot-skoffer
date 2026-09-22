@@ -1,6 +1,5 @@
 import requests
 
-
 # see https://open-meteo.com/en/docs for more details
 
 WEATHER_BASE_URL = "https://api.open-meteo.com/v1/forecast?latitude={latitude}&longitude={longtitude}&timezone=auto&"
@@ -8,7 +7,6 @@ WEATHER_FORECAST_LENGTH_LIMIT = {
     "forecast_days": 16,
     "forecast_hours": 16 * 24,
     "forecast_minutely_15": 16 * 24 * 60 / 15,
-
     "past_days": 92,
     "past_hours": 92 * 24,
     "past_minutely_15": 92 * 24 * 60 / 15,
@@ -188,84 +186,64 @@ WEATHER_PARAMETER_CATEGORY = {
     "soil_temperature_6cm": "Soil Temperature",
     "soil_temperature_18cm": "Soil Temperature",
     "soil_temperature_54cm": "Soil Temperature",
-
     "relative_humidity_2m": "Humidity",
-
     "pressure_msl": "Pressure",
     "surface_pressure": "Pressure",
-
     "cloud_cover": "Cloud Cover",
     "cloud_cover_low": "Cloud Cover",
     "cloud_cover_mid": "Cloud Cover",
     "cloud_cover_high": "Cloud Cover",
-
     "wind_speed_10m": "Wind Speed",
     "wind_speed_80m": "Wind Speed",
     "wind_speed_120m": "Wind Speed",
     "wind_speed_180m": "Wind Speed",
     "wind_speed_10m_max": "Wind Speed",
-
     "wind_direction_10m": "Wind Direction",
     "wind_direction_80m": "Wind Direction",
     "wind_direction_120m": "Wind Direction",
     "wind_direction_180m": "Wind Direction",
     "wind_direction_10m_dominant": "Wind Direction",
-
     "wind_gusts_10m": "Wind Gusts",
     "wind_gusts_10m_max": "Wind Gusts",
-
     "shortwave_radiation": "Solar Radiation",
     "direct_radiation": "Solar Radiation",
     "direct_normal_irradiance": "Solar Radiation",
     "diffuse_radiation": "Solar Radiation",
     "global_tilted_irradiance": "Solar Radiation",
     "shortwave_radiation_sum": "Solar Radiation",
-
     "precipitation": "Precipitation",
     "rain": "Precipitation",
     "showers": "Precipitation",
     "precipitation_sum": "Precipitation",
     "rain_sum": "Precipitation",
     "showers_sum": "Precipitation",
-
     "snowfall": "Snowfall",
     "snowfall_sum": "Snowfall",
     "snow_depth": "Snowfall",
     "snowfall_height": "Snowfall",
-
     "precipitation_probability": "Precipitation Probability",
     "precipitation_probability_max": "Precipitation Probability",
     "precipitation_probability_mean": "Precipitation Probability",
     "precipitation_probability_min": "Precipitation Probability",
-
     "precipitation_hours": "Precipitation Duration",
-
     "evapotranspiration": "Evapotranspiration",
     "et0_fao_evapotranspiration": "Evapotranspiration",
-
     "visibility": "Visibility",
-
     "weather_code": "Weather Conditions",
-
     "cape": "Storm Potential",
     "lightning_potential": "Storm Potential",
-
     "sunshine_duration": "Sunlight Duration",
     "daylight_duration": "Sunlight Duration",
-
     "sunrise": "Sunrise & Sunset",
     "sunset": "Sunrise & Sunset",
-
     "uv_index_max": "UV Index",
     "uv_index_clear_sky_max": "UV Index",
-
     "soil_moisture_0_to_1cm": "Soil Moisture",
     "soil_moisture_1_to_3cm": "Soil Moisture",
     "soil_moisture_3_to_9cm": "Soil Moisture",
     "soil_moisture_9_to_27cm": "Soil Moisture",
     "soil_moisture_27_to_81cm": "Soil Moisture",
-
-    "is_day": "Daylight Indicator"
+    "is_day": "Daylight Indicator",
 }
 WEATHER_PARAMETER_DESCRIPTION = {
     "temperature_2m": "Air temperature at 2 meters above ground",
@@ -338,7 +316,7 @@ WEATHER_PARAMETER_DESCRIPTION = {
     "wind_direction_10m_dominant": "Dominant wind direction at 10 meters above ground",
     "shortwave_radiation_sum": "Sum of solar radiation on a given day in Megajoules",
     "uv_index_max": "Daily maximum UV Index",
-    "uv_index_clear_sky_max": "Daily maximum UV Index assuming cloud-free conditions"
+    "uv_index_clear_sky_max": "Daily maximum UV Index assuming cloud-free conditions",
 }
 WEATHER_WMO_CODE = {
     "-1": "No data",
@@ -369,7 +347,7 @@ WEATHER_WMO_CODE = {
     "86": "Heavy snow showers",
     "95": "Thunderstorm",
     "96": "Thunderstorm, light hail",
-    "99": "Thunderstorm, heavy hail"
+    "99": "Thunderstorm, heavy hail",
 }
 
 
@@ -408,7 +386,6 @@ class OpenMeteoWeather:
             "forecast_days": 0,
             "forecast_hours": 0,
             "forecast_minutely_15": 0,
-
             "past_days": 0,
             "past_hours": 0,
             "past_minutely_15": 0,
@@ -416,8 +393,7 @@ class OpenMeteoWeather:
 
     def get_url(self):
         ret = WEATHER_BASE_URL.format(
-            latitude=self.latitude,
-            longtitude=self.longtitude
+            latitude=self.latitude, longtitude=self.longtitude
         )
 
         for key in self.parameters.keys():
@@ -456,14 +432,13 @@ class OpenMeteoWeather:
         if model not in WEATHER_FORECAST_LENGTH_LIMIT.keys():
             raise Exception(f"model {model} is invalid")
         if value > WEATHER_FORECAST_LENGTH_LIMIT[model]:
-            raise Exception(f"value exceeding limit (value {value}, limit {WEATHER_FORECAST_LENGTH_LIMIT[model]})")
+            raise Exception(
+                f"value exceeding limit (value {value}, limit {WEATHER_FORECAST_LENGTH_LIMIT[model]})"
+            )
         self.forecast_length[model] = value
 
     def request(self):
-        response = requests.get(
-            self.get_url(),
-            headers={"User-Agent": self.user_agent}
-        )
+        response = requests.get(self.get_url(), headers={"User-Agent": self.user_agent})
 
         if response.status_code != 200:
             return None

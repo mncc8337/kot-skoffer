@@ -3,42 +3,55 @@ from discord import Interaction
 
 
 class TODOList(data_loader.Data):
-    todo_list: list
-
     def __init__(self, *args):
         super().__init__(*args)
 
-    def valid_item(self, id, interaction: Interaction):
-        local_data = self.get_data(interaction, [])
-        return id < len(local_data)
+    def valid_item(self, item_id: int, interaction: Interaction):
+        data, _, _ = self.get_data(interaction)
+        return item_id < len(data["items"])
 
-    def add(self, content, interaction: Interaction):
-        local_data = self.get_data(interaction, [])
-        local_data.append({
-            "content": content,
-            "checked": False,
-            "remind": -1,
-        })
+    def add(self, content: str, interaction: Interaction):
+        doc, target_id, target_type = self.get_data(interaction, {"items": []})
 
-    def remove(self, id, interaction: Interaction):
-        local_data = self.get_data(interaction, [])
-        local_data.pop(id)
+        doc["items"].append(
+            {
+                "content": content,
+                "checked": False,
+                "remind": -1,
+            }
+        )
 
-    def toggle(self, id, interaction: Interaction):
-        local_data = self.get_data(interaction, [])
-        local_data[id]["checked"] = not local_data[id]["checked"]
+        self.save_data(doc, target_id, target_type)
+
+    def remove(self, item_id: int, interaction: Interaction):
+        doc, target_id, target_type = self.get_data(interaction, {"items": []})
+
+        if item_id < len(doc["items"]):
+            doc["items"].pop(item_id)
+            self.save_data(doc, target_id, target_type)
+
+        if item_id < len(doc["items"]):
+            doc["items"].pop(item_id)
+            self.save_data(doc, target_id, target_type)
+
+    def toggle(self, item_id: int, interaction: Interaction):
+        doc, target_id, target_type = self.get_data(interaction, {"items": []})
+
+        if item_id < len(doc["items"]):
+            doc["items"][item_id]["checked"] = not doc["items"][item_id]["checked"]
+            self.save_data(doc, target_id, target_type)
 
     def text(self, interaction: Interaction):
-        local_data = self.get_data(interaction, [])
+        doc, _, _ = self.get_data(interaction, {"items": []})
+        items = doc["items"]
+
+        if len(items) == 0:
+            return "nothing to show"
+
         content = "```\n"
-        if len(local_data) == 0:
-            content = "nothing to show"
-        else:
-            for i in range(len(local_data)):
-                item = local_data[i]
-                box = "☐"
-                if item["checked"]:
-                    box = "☑"
-                content += f"{i}. " + box + " " + item["content"] + "\n"
-            content += "\n```"
+        for i, item in enumerate(items):
+            box = "☑" if item["checked"] else "☐"
+            content += f"{i}. {box} {item['content']}\n"
+        content += "```"
+
         return content

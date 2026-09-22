@@ -9,9 +9,12 @@ class LuckyWheel(data_loader.Data):
         super().__init__(*args)
 
     async def spin(self, interaction: Interaction):
-        local_data = self.get_data(interaction, {"user": {}, "item": {}})
+        data, _, _ = self.get_data(
+            interaction,
+            {"user": {}, "item": {}}
+        )
 
-        items_dict = local_data["item"]
+        items_dict = data["item"]
         if len(items_dict.keys()) < 2:
             await interaction.response.send_message("not enough items to spin")
             return
@@ -24,10 +27,10 @@ class LuckyWheel(data_loader.Data):
         usr_id_str = str(interaction.user.id)
         value = items_dict[item][0]
 
-        if usr_id_str in local_data["user"]:
-            local_data["user"][usr_id_str]["point"] += value
+        if usr_id_str in data["user"]:
+            data["user"][usr_id_str]["point"] += value
         else:
-            local_data["user"][usr_id_str] = {
+            data["user"][usr_id_str] = {
                 "name": interaction.user.name,
                 "point": value,
             }
@@ -37,35 +40,51 @@ class LuckyWheel(data_loader.Data):
         )
 
     def add(self, key: str, val: int, weight: int, interaction: Interaction):
-        local_data = self.get_data(interaction, {"user": {}, "item": {}})
-        local_data["item"][key] = [val, weight]
+        data, target_id, target_type = self.get_data(
+            interaction,
+            {"user": {}, "item": {}}
+        )
+        data["item"][key] = [val, weight]
+        self.save_data(data, target_id, target_type)
 
     def remove(self, key: str, interaction: Interaction):
-        local_data = self.get_data(interaction, {"user": {}, "item": {}})
-        local_data["item"].pop(key)
+        data, target_id, target_type = self.get_data(
+            interaction,
+            {"user": {}, "item": {}}
+        )
+        data["item"].pop(key)
+        self.save_data(data, target_id, target_type)
 
     def set_weight(self, key: str, weight: int, interaction: Interaction):
-        local_data = self.get_data(interaction, {"user": {}, "item": {}})
-        local_data["item"][key][1] = weight
+        data, target_id, target_type = self.get_data(
+            interaction,
+            {"user": {}, "item": {}}
+        )
+        data["item"][key][1] = weight
+        self.save_data(data, target_id, target_type)
 
     def set_value(self, key: str, value: int, interaction: Interaction):
-        local_data = self.get_data(interaction, {"user": {}, "item": {}})
-        local_data["item"][key][0] = value
+        data, target_id, target_type = self.get_data(
+            interaction,
+            {"user": {}, "item": {}}
+        )
+        data["item"][key][0] = value
+        self.save_data(data, target_id, target_type)
 
     async def list(self, interaction: Interaction):
-        local_data = self.get_data(interaction, {"user": {}, "item": {}})
+        data, _, _ = self.get_data(interaction, {"user": {}, "item": {}})
 
         total_weight = 0
         expected_value = 0
 
         items = []
 
-        for item in local_data["item"].keys():
-            item_dat = local_data["item"][item]
+        for item in data["item"].keys():
+            item_dat = data["item"][item]
             total_weight += item_dat[1]
             expected_value += item_dat[0] * item_dat[1]
             items.append([item_dat[0], item_dat[1], item])
-        if len(local_data["item"]) == 0:
+        if len(data["item"]) == 0:
             total_weight = 1
 
         items.sort(key=lambda x: (x[0], x[1]), reverse=True)
@@ -93,12 +112,12 @@ class LuckyWheel(data_loader.Data):
             await interaction.response.send_message(embed=embed)
 
     async def user(self, interaction: Interaction):
-        local_data = self.get_data(interaction, {"user": {}, "item": {}})
+        data, _, _ = self.get_data(interaction, {"user": {}, "item": {}})
         items = []
-        for user in local_data["user"].keys():
+        for user in data["user"].keys():
             items.append((
-                local_data["user"][user]["point"],
-                local_data["user"][user]["name"]
+                data["user"][user]["point"],
+                data["user"][user]["name"]
             ))
         items.sort()
 
