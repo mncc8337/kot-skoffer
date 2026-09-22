@@ -351,17 +351,8 @@ WEATHER_WMO_CODE = {
 }
 
 
-def search_location(query: str, limit: int = 1, user_agent: str = "dummy"):
-    url = f"https://nominatim.openstreetmap.org/search?q={query}&format=json&limit={limit}"
-    response = requests.get(url, headers={"User-Agent": user_agent})
-
-    if response.status_code != 200:
-        return None
-    return response.json()
-
-
-def reverse_location(lat: float, lon: float, user_agent: str = "dummy"):
-    url = f"https://nominatim.openstreetmap.org/reverse?lat={lat}&lon={lon}&format=json"
+def search_location(query: str, limit: int, user_agent: str):
+    url = f"https://geocoding-api.open-meteo.com/v1/search?name={query}&count={limit}&format=json"
     response = requests.get(url, headers={"User-Agent": user_agent})
 
     if response.status_code != 200:

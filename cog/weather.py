@@ -26,24 +26,16 @@ def random_vibrant_color():
     ))
 
 
-async def process_location(location, lat, lon, user_agent):
-    location_name = ""
-    if location != "":
-        data = weatherapi.search_location(location, 1, user_agent)
-        if not data or len(data) < 1:
-            return (None, None, None)
-        lat = data[0]["lat"]
-        lon = data[0]["lon"]
-        location_name = data[0]["display_name"]
-    else:
-        data = weatherapi.reverse_location(lat, lon, user_agent)
-        if not data:
-            return (None, None, None)
-        lat = data["lat"]
-        lon = data["lon"]
-        location_name = data["display_name"]
+async def process_location(query, user_agent):
+    data = weatherapi.search_location(query, 1, user_agent)
+    if "results" not in data:
+        return (None, None, None)
 
-    return (location_name, lat, lon)
+    lat = data["results"][0]["latitude"]
+    lon = data["results"][0]["longitude"]
+    location = data["results"][0]["name"]
+
+    return (location, lat, lon)
 
 
 class WeatherCog(GroupCog, group_name="weather"):
@@ -57,15 +49,16 @@ class WeatherCog(GroupCog, group_name="weather"):
     )
     async def search(self, interaction: Interaction, name: str):
         data = weatherapi.search_location(name, limit=10, user_agent=self.user_agent)
-        if not data or len(data) < 1:
+        if "results" not in data:
             await interaction.response.send_message("no location found", ephemeral=True)
             return
 
-        content = f"found {len(data)} match(es)\n"
-        for loc in data:
-            content += f"{loc["display_name"]}\n"
-            content += f"\tlat {loc["lat"]}, lon {loc["lon"]}\n"
-            content += f"\t[see location](https://www.openstreetmap.org/?mlat={loc["lat"]}&mlon={loc["lon"]}&zoom=14)\n"
+        content = f"found {len(data["results"])} match(es)\n"
+        for loc in data["results"]:
+            content += f"{loc["name"]}\n"
+            content += f"\tlat {loc["latitude"]}, lon {loc["longitude"]}\n"
+            content += f"\t[see location](https://www.openstreetmap.org/?mlat={loc["latitude"]}&mlon={loc["longitude"]}&zoom=14)\n"
+        content += "[location data by Open-Meteo.com](https://open-meteo.com/), [map links by OpenStreetMap.org](https://www.openstreetmap.org/)"
 
         await interaction.response.send_message(content)
 
@@ -106,19 +99,15 @@ class WeatherCog(GroupCog, group_name="weather"):
     @app_commands.command(name="current", description="get current weather data")
     @app_commands.describe(
         parameters="list of parameters to plot in format \"param1, param2, param3\"",
-        location="location name to get weather",
-        lat="latitude if \"location\" is not provided",
-        lon="longtitude if \"location\" if not provided",
+        location="location to get the weather",
     )
     async def current(
         self,
         interaction: Interaction,
         parameters: str,
-        location: str = "",
-        lat: float = 0.0,
-        lon: float = 0.0,
+        location: str,
     ):
-        location_name, lat, lon = await process_location(location, lat, lon, self.user_agent)
+        location_name, lat, lon = await process_location(location, self.user_agent)
         if not location_name:
             await interaction.response.send_message("location not found", ephemeral=True)
             return
@@ -137,7 +126,7 @@ class WeatherCog(GroupCog, group_name="weather"):
             return
 
         message = f"weather stat of {location_name}:\n"
-        message += f"```\n{json.dumps(data["current"], indent=4)}\n```\n[request url]({api.get_url()})"
+        message += f"```\n{json.dumps(data["current"], indent=4)}\n```\n[request url]({api.get_url()}), [weather data by Open-Meteo.com](https://open-meteo.com/)"
         await interaction.response.send_message(message)
 
     @app_commands.command(
@@ -147,9 +136,7 @@ class WeatherCog(GroupCog, group_name="weather"):
     @app_commands.describe(
         model="model",
         parameters="parameters to plot. list is accepted in format \"param1,param2,param3\"",
-        location="location name to get weather",
-        lat="latitude if \"location\" is not provided",
-        lon="longtitude if \"location\" is not provided",
+        location="location to get the weather",
         forecast_minutes="length to forecast (model \"minutely\"). maximum: 23040, default: 60",
         forecast_hours="length to forecast (model \"hourly\"). maximum: 384, default: 6",
         forecast_days="length to forecast (model \"daily\"). maximum: 16, default: 5",
@@ -169,9 +156,7 @@ class WeatherCog(GroupCog, group_name="weather"):
         interaction: Interaction,
         model: str,
         parameters: str,
-        location: str = "",
-        lat: float = 0.0,
-        lon: float = 0.0,
+        location: str,
         forecast_minutes: int = 60,
         forecast_hours: int = 6,
         forecast_days: int = 5,
@@ -179,7 +164,7 @@ class WeatherCog(GroupCog, group_name="weather"):
         past_hours: int = 0,
         past_minutes: int = 0,
     ):
-        location_name, lat, lon = await process_location(location, lat, lon, self.user_agent)
+        location_name, lat, lon = await process_location(location, self.user_agent)
         if not location_name:
             await interaction.response.send_message("location not found", ephemeral=True)
             return
@@ -341,4 +326,4 @@ class WeatherCog(GroupCog, group_name="weather"):
             buf.seek(0)
             figs.append(discord.File(fp=buf, filename=category + ".png"))
 
-        await interaction.followup.send(f"plotted {model} weather stat of {location_name}\n[request url]({api.get_url()})", files=figs)
+        await interaction.followup.send(f"plotted {model} weather stat of {location_name}\n[request url]({api.get_url()}), [weather data by Open-Meteo.com](https://open-meteo.com/)", files=figs)

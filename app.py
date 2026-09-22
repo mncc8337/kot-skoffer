@@ -11,6 +11,7 @@ import requests
 
 import cog
 
+
 load_dotenv()
 discord_token = os.getenv("DISCORD_TOKEN")
 if not discord_token:
