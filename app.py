@@ -61,6 +61,8 @@ async def on_ready():
     await bot.add_cog(cog.SpinCog(bot))
     await bot.add_cog(cog.ImageCog(bot))
     await bot.add_cog(cog.WeatherCog(bot))
+    await bot.add_cog(cog.WiktionaryCog(bot))
+    await bot.add_cog(cog.NoiTuCog(bot))
 
     if ai_enabled:
         await bot.add_cog(cog.AiCog(bot))

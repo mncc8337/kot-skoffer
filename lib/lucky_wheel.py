@@ -16,7 +16,10 @@ class LuckyWheel(data_loader.Data):
 
         items_dict = data["item"]
         if len(items_dict.keys()) < 2:
-            await interaction.response.send_message("not enough items to spin")
+            await interaction.response.send_message(
+                "not enough items to spin",
+                emepheral=True,
+            )
             return
 
         item_names = list(items_dict.keys())

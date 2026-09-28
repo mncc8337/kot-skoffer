@@ -12,25 +12,192 @@ import lib.random_name as random_name
 from datetime import datetime, timezone
 import asyncio
 
-
 LANGS = [
     "random",
-    "aa", "ab", "ae", "af", "ak", "am", "an", "ar", "as", "av", "ay", "az",
-    "ba", "be", "bg", "bh", "bi", "bm", "bn", "bo", "br", "bs", "ca", "ce",
-    "ch", "co", "cr", "cs", "cu", "cv", "cy", "da", "de", "dv", "dz", "ee",
-    "el", "en", "eo", "es", "et", "eu", "fa", "ff", "fi", "fj", "fo", "fr",
-    "fy", "ga", "gd", "gl", "gn", "gu", "gv", "ha", "he", "hi", "ho", "hr",
-    "ht", "hu", "hy", "hz", "ia", "id", "ie", "ig", "ii", "ik", "io", "is",
-    "it", "iu", "ja", "jv", "ka", "kg", "ki", "kj", "kk", "kl", "km", "kn",
-    "ko", "kr", "ks", "ku", "kv", "kw", "ky", "la", "lb", "lg", "li", "ln",
-    "lo", "lt", "lu", "lv", "mg", "mh", "mi", "mk", "ml", "mn", "mr", "ms",
-    "mt", "my", "na", "nb", "nd", "ne", "ng", "nl", "nn", "no", "nr", "nv",
-    "ny", "oc", "oj", "om", "or", "os", "pa", "pi", "pl", "ps", "pt", "qu",
-    "rm", "rn", "ro", "ru", "rw", "sa", "sc", "sd", "se", "sg", "si", "sk",
-    "sl", "sm", "sn", "so", "sq", "sr", "ss", "st", "su", "sv", "sw", "ta",
-    "te", "tg", "th", "ti", "tk", "tl", "tn", "to", "tr", "ts", "tt", "tw",
-    "ty", "ug", "uk", "ur", "uz", "ve", "vi", "vo", "wa", "wo", "xh", "yi",
-    "yo", "za", "zh", "zu",
+    "aa",
+    "ab",
+    "ae",
+    "af",
+    "ak",
+    "am",
+    "an",
+    "ar",
+    "as",
+    "av",
+    "ay",
+    "az",
+    "ba",
+    "be",
+    "bg",
+    "bh",
+    "bi",
+    "bm",
+    "bn",
+    "bo",
+    "br",
+    "bs",
+    "ca",
+    "ce",
+    "ch",
+    "co",
+    "cr",
+    "cs",
+    "cu",
+    "cv",
+    "cy",
+    "da",
+    "de",
+    "dv",
+    "dz",
+    "ee",
+    "el",
+    "en",
+    "eo",
+    "es",
+    "et",
+    "eu",
+    "fa",
+    "ff",
+    "fi",
+    "fj",
+    "fo",
+    "fr",
+    "fy",
+    "ga",
+    "gd",
+    "gl",
+    "gn",
+    "gu",
+    "gv",
+    "ha",
+    "he",
+    "hi",
+    "ho",
+    "hr",
+    "ht",
+    "hu",
+    "hy",
+    "hz",
+    "ia",
+    "id",
+    "ie",
+    "ig",
+    "ii",
+    "ik",
+    "io",
+    "is",
+    "it",
+    "iu",
+    "ja",
+    "jv",
+    "ka",
+    "kg",
+    "ki",
+    "kj",
+    "kk",
+    "kl",
+    "km",
+    "kn",
+    "ko",
+    "kr",
+    "ks",
+    "ku",
+    "kv",
+    "kw",
+    "ky",
+    "la",
+    "lb",
+    "lg",
+    "li",
+    "ln",
+    "lo",
+    "lt",
+    "lu",
+    "lv",
+    "mg",
+    "mh",
+    "mi",
+    "mk",
+    "ml",
+    "mn",
+    "mr",
+    "ms",
+    "mt",
+    "my",
+    "na",
+    "nb",
+    "nd",
+    "ne",
+    "ng",
+    "nl",
+    "nn",
+    "no",
+    "nr",
+    "nv",
+    "ny",
+    "oc",
+    "oj",
+    "om",
+    "or",
+    "os",
+    "pa",
+    "pi",
+    "pl",
+    "ps",
+    "pt",
+    "qu",
+    "rm",
+    "rn",
+    "ro",
+    "ru",
+    "rw",
+    "sa",
+    "sc",
+    "sd",
+    "se",
+    "sg",
+    "si",
+    "sk",
+    "sl",
+    "sm",
+    "sn",
+    "so",
+    "sq",
+    "sr",
+    "ss",
+    "st",
+    "su",
+    "sv",
+    "sw",
+    "ta",
+    "te",
+    "tg",
+    "th",
+    "ti",
+    "tk",
+    "tl",
+    "tn",
+    "to",
+    "tr",
+    "ts",
+    "tt",
+    "tw",
+    "ty",
+    "ug",
+    "uk",
+    "ur",
+    "uz",
+    "ve",
+    "vi",
+    "vo",
+    "wa",
+    "wo",
+    "xh",
+    "yi",
+    "yo",
+    "za",
+    "zh",
+    "zu",
 ]
 
 
@@ -39,8 +206,7 @@ class RandomCog(GroupCog, group_name="random"):
         self.bot = bot
 
     @app_commands.command(
-        name="roll",
-        description="get some random number in specified range"
+        name="roll", description="get some random number in specified range"
     )
     @app_commands.describe(
         lbound="lower bound. default: 1",
@@ -78,7 +244,7 @@ class RandomCog(GroupCog, group_name="random"):
                 requests.get,
                 "https://catfact.ninja/fact",
                 headers={"User-Agent": os.getenv("USER_AGENT")},
-                timeout=10
+                timeout=10,
             )
             res = page.json()
             fact = res.get("fact")
@@ -89,11 +255,14 @@ class RandomCog(GroupCog, group_name="random"):
     async def autocomplete_lang(self, interaction: Interaction, current: str):
         return [
             app_commands.Choice(name=code, value=code)
-            for code in LANGS if code.startswith(current.lower())
+            for code in LANGS
+            if code.startswith(current.lower())
         ][:25]
 
     @app_commands.command(name="wiki", description="get random wikipedia page")
-    @app_commands.describe(lang="2 characters indicating a language (en, es, fr, ...). default: en")
+    @app_commands.describe(
+        lang="2 characters indicating a language (en, es, fr, ...). default: en"
+    )
     @app_commands.autocomplete(lang=autocomplete_lang)
     async def wiki(
         self,
@@ -116,21 +285,22 @@ class RandomCog(GroupCog, group_name="random"):
                 requests.get,
                 f"https://{lang}.wikipedia.org/api/rest_v1/page/random/summary",
                 headers={"User-Agent": os.getenv("USER_AGENT")},
-                timeout=10
+                timeout=10,
             )
 
             page = page.json()
         except Exception as e:
-            await interaction.followup.send(content="failed to get random page. " + str(e))
+            await interaction.followup.send(
+                content="failed to get random page. " + str(e)
+            )
             return
 
         embed = discord.Embed(
             title=page["title"],
             url=page["content_urls"]["desktop"]["page"],
             timestamp=datetime.strptime(
-                page["timestamp"],
-                "%Y-%m-%dT%H:%M:%SZ"
-            ).replace(tzinfo=timezone.utc)
+                page["timestamp"], "%Y-%m-%dT%H:%M:%SZ"
+            ).replace(tzinfo=timezone.utc),
         )
         if page.get("description"):
             embed.description = page["description"]
@@ -143,7 +313,7 @@ class RandomCog(GroupCog, group_name="random"):
         if page.get("coordinates"):
             embed.add_field(
                 name="coordinates",
-                value=f"{page["coordinates"]["lat"]}, {page["coordinates"]["lon"]}"
+                value=f"{page["coordinates"]["lat"]}, {page["coordinates"]["lon"]}",
             )
 
         await interaction.followup.send(embed=embed)

@@ -4,6 +4,9 @@ bad discord bot
 - random commands that no one uses 🔥
 - local AI chat bot 🔥
 - stupid image editor 🔥
+- wiktionary lookup 🔥
+- a spinner for some reasons 🔥
+- gêm nối từ, ngạo nghễ vi en 🔥
 ## running
 ### install stuffs
 `pip install -r requirements.txt`
