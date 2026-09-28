@@ -1,5 +1,6 @@
 import re
 import requests
+from urllib.parse import unquote, urlsplit, parse_qs
 
 _LINK_TEMPLATES = {
     "l",
@@ -28,7 +29,6 @@ _LANGUAGE_NAMES = {
     "ara": "Arabic",
     "sqi": "Albanian",
     "ell": "Greek",
-
     # im done with this shit
     "{{langname|vi}}": "Vietnamese",
 }
@@ -484,3 +484,38 @@ class Wiktionary:
             params.update(continue_token)
 
         return valid_words
+
+    def random_word(self, category: str = ""):
+        if category:
+            url = f"https://{self.base_url}/wiki/Special:RandomInCategory/"
+            params = {"wpcategory": category}
+        else:
+            url = f"https://{self.base_url}/wiki/Special:Random"
+            params = {}
+
+        response = self.session.get(
+            url,
+            params=params,
+            allow_redirects=True,
+        )
+        response.raise_for_status()
+
+        parsed = urlsplit(response.url)
+        query = parse_qs(parsed.query)
+
+        if "title" in query:
+            title = query["title"][0].replace("_", " ")
+        elif parsed.path.startswith("/wiki/"):
+            title = unquote(parsed.path[len("/wiki/") :]).replace("_", " ")
+        else:
+            return None
+
+        if not title:
+            return None
+
+        page_id = self.exact_match(title)
+
+        if page_id < 0:
+            return None
+
+        return page_id, title
