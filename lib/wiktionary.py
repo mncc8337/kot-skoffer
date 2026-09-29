@@ -215,7 +215,7 @@ class Wiktionary:
                         wait_time = 5
 
                     print(
-                        "429-ed while requesting wiktionary. waiting for",
+                        "kot: 429-ed while requesting wiktionary. waiting for",
                         wait_time,
                         "seconds before retrying",
                     )
@@ -223,6 +223,7 @@ class Wiktionary:
                     continue
 
                 if response.status != 200:
+                    print("kot: got err", response.status, "while requesting wiktionary")
                     return None
 
                 return await response.json()
@@ -248,7 +249,7 @@ class Wiktionary:
                         wait_time = 5
 
                     print(
-                        "429-ed while requesting wiktionary. waiting for",
+                        "kot: 429-ed while requesting wiktionary. waiting for",
                         wait_time,
                         "seconds before retrying",
                     )
@@ -256,6 +257,7 @@ class Wiktionary:
                     continue
 
                 if response.status != 200:
+                    print("kot: got err", response.status, " while requesting wiktionary")
                     return None
 
                 return str(response.url)

@@ -161,7 +161,7 @@ class ViWiktionaryEngine(WordEngine, Wiktionary):
 
         def_res = await self.definitions_by_id(page_id)
         if def_res is None:
-            return "không thể search định nghĩa ngay bây giờ", False
+            return "lỗi trong khi search định nghĩa", False
 
         defs, word = def_res
 
@@ -210,7 +210,7 @@ class MinhqndEngine(WordEngine, Minhqnd):
     async def definition(self, word: str) -> tuple[str, bool]:
         lookup_result = await self.lookup(word, "vi", "vi")
         if lookup_result is None:
-            return "không thể search định nghĩa ngay bây giờ", False
+            return "lỗi trong khi search định nghĩa", False
         if not lookup_result["exists"]:
             return "không tìm thấy từ trong từ điển", False
 
