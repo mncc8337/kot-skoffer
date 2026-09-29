@@ -1,16 +1,7 @@
 import re
-import requests
+import aiohttp
+import asyncio
 from urllib.parse import unquote, urlsplit, parse_qs
-
-_LINK_TEMPLATES = {
-    "l",
-    "l+",
-    "m",
-    "m+",
-    "t",
-    "t+",
-}
-
 
 _LANGUAGE_NAMES = {
     "vie": "Vietnamese",
@@ -190,13 +181,86 @@ class Wiktionary:
         self.base_url = base_url
         self.api_url = f"https://{base_url}/w/api.php"
 
-        self.session = requests.Session()
-        self.session.headers.update(
-            {
+        self.session = aiohttp.ClientSession(
+            headers={
                 "User-Agent": user_agent,
             }
         )
 
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        await self.session.close()
+
+    async def _get_json(
+        self,
+        url: str,
+        *,
+        params: dict | None = None,
+        allow_redirects: bool = True,
+    ) -> dict | None:
+        while True:
+            async with self.session.get(
+                url,
+                params=params,
+                allow_redirects=allow_redirects,
+            ) as response:
+                if response.status == 429:
+                    retry_after = response.headers.get("Retry-After")
+
+                    try:
+                        wait_time = float(retry_after)
+                    except (TypeError, ValueError):
+                        wait_time = 5
+
+                    print(
+                        "429-ed while requesting wiktionary. waiting for",
+                        wait_time,
+                        "seconds before retrying",
+                    )
+                    await asyncio.sleep(wait_time)
+                    continue
+
+                if response.status != 200:
+                    return None
+
+                return await response.json()
+
+    async def _get_final_url(
+        self,
+        url: str,
+        *,
+        params: dict | None = None,
+    ) -> str | None:
+        while True:
+            async with self.session.get(
+                url,
+                params=params,
+                allow_redirects=True,
+            ) as response:
+                if response.status == 429:
+                    retry_after = response.headers.get("Retry-After")
+
+                    try:
+                        wait_time = float(retry_after)
+                    except (TypeError, ValueError):
+                        wait_time = 5
+
+                    print(
+                        "429-ed while requesting wiktionary. waiting for",
+                        wait_time,
+                        "seconds before retrying",
+                    )
+                    await asyncio.sleep(wait_time)
+                    continue
+
+                if response.status != 200:
+                    return None
+
+                return str(response.url)
+
+    @staticmethod
     def definitions_to_string(definitions: list) -> str:
         lines = []
 
@@ -214,7 +278,10 @@ class Wiktionary:
 
         return "\n".join(lines)
 
-    def definitions_by_id(self, page_id: int) -> dict:
+    async def definitions_by_id(
+        self,
+        page_id: int,
+    ) -> tuple[dict, str | None] | None:
         params = {
             "action": "query",
             "pageids": page_id,
@@ -225,19 +292,19 @@ class Wiktionary:
             "utf8": 1,
         }
 
-        response = self.session.get(
+        data = await self._get_json(
             self.api_url,
             params=params,
         )
-        response.raise_for_status()
 
-        data = response.json()
+        if data is None:
+            return None
 
         pages = data.get("query", {}).get("pages", {})
         page = pages.get(str(page_id), {})
 
         if "revisions" not in page:
-            return {}, None
+            return None
 
         wikitext = page["revisions"][0]["slots"]["main"]["*"]
 
@@ -248,13 +315,13 @@ class Wiktionary:
 
         section_matches = []
 
-        # matchs ==lang==
         for match in re.finditer(
             r"^==[ \t]*([^=\r\n]+?)[ \t]*==[ \t]*(?:\r?\n|$)",
             wikitext,
             flags=re.MULTILINE,
         ):
             code = match.group(1).lower().strip()
+
             section_matches.append(
                 {
                     "start": match.start(),
@@ -263,13 +330,13 @@ class Wiktionary:
                 }
             )
 
-        # matchs {{-lang-}}
         for match in re.finditer(
             r"^\{\{-([a-z]{2,3})-\}\}[ \t]*(?:\r?\n|$)",
             wikitext,
             flags=re.MULTILINE | re.IGNORECASE,
         ):
             code = match.group(1).lower().strip()
+
             section_matches.append(
                 {
                     "start": match.start(),
@@ -282,7 +349,6 @@ class Wiktionary:
 
         all_languages_dict = {}
 
-        # Parse each language section
         for idx, section in enumerate(section_matches):
             lang_name = section["name"]
 
@@ -293,16 +359,6 @@ class Wiktionary:
 
             lang_text = wikitext[section["end"] : end_pos]
 
-            # extract definition lines
-            #
-            # #  definition
-            # ## sub-definition
-            # ### sub-sub-definition
-            #
-            # skip:
-            # #: example
-            # #* quotation
-
             raw_lines = re.findall(
                 r"^(#+)(?![:*])[ \t]*(.*?)[ \t]*$",
                 lang_text,
@@ -312,16 +368,6 @@ class Wiktionary:
             if not raw_lines:
                 continue
 
-            # node:
-            # [
-            #     "definition",
-            #     [children]
-            # ]
-            #
-            # stack:
-            # [
-            #     (level, node),
-            # ]
             root = []
             stack = []
 
@@ -353,7 +399,6 @@ class Wiktionary:
 
                 if not stack:
                     root.append(node)
-
                 else:
                     parent = stack[-1][1]
                     parent[1].append(node)
@@ -365,11 +410,11 @@ class Wiktionary:
 
         return all_languages_dict, page.get("title")
 
-    def exact_match(
+    async def exact_match(
         self,
         title: str,
         category: str = "",
-    ) -> int:
+    ) -> int | None:
         params = {
             "action": "query",
             "titles": title,
@@ -379,24 +424,20 @@ class Wiktionary:
             "utf8": 1,
         }
 
-        response = self.session.get(
+        data = await self._get_json(
             self.api_url,
             params=params,
         )
 
-        if response.status_code != 200:
-            return -1
+        if data is None:
+            return None
 
-        pages = (
-            response.json()
-            .get(
-                "query",
-                {},
-            )
-            .get(
-                "pages",
-                {},
-            )
+        pages = data.get(
+            "query",
+            {},
+        ).get(
+            "pages",
+            {},
         )
 
         for page_id, page_data in pages.items():
@@ -416,12 +457,12 @@ class Wiktionary:
 
         return -1
 
-    def prefix_match(
+    async def prefix_match(
         self,
         prefix: str,
         category: str,
         target_count: int = 10,
-    ) -> dict[str, int]:
+    ) -> dict[str, int] | None:
         params = {
             "action": "query",
             "generator": "allpages",
@@ -436,15 +477,13 @@ class Wiktionary:
         valid_words = {}
 
         while True:
-            response = self.session.get(
+            data = await self._get_json(
                 self.api_url,
                 params=params,
             )
 
-            if response.status_code != 200:
-                break
-
-            data = response.json()
+            if data is None:
+                return None
 
             pages = data.get(
                 "query",
@@ -467,7 +506,8 @@ class Wiktionary:
 
                 if category == "":
                     valid_words[title] = int(page_id)
-                elif any(category in cat["title"] for cat in cats):
+
+                elif any(category == cat["title"] for cat in cats):
                     valid_words[title] = int(page_id)
 
                 if len(valid_words) >= target_count:
@@ -485,35 +525,45 @@ class Wiktionary:
 
         return valid_words
 
-    def random_word(self, category: str = ""):
+    async def random_word(
+        self,
+        category: str = "",
+    ) -> tuple[int, str] | None:
         if category:
-            url = f"https://{self.base_url}/wiki/Special:RandomInCategory/"
-            params = {"wpcategory": category}
+            url = f"https://{self.base_url}" "/wiki/Special:RandomInCategory/"
+            params = {
+                "wpcategory": category,
+            }
         else:
-            url = f"https://{self.base_url}/wiki/Special:Random"
+            url = f"https://{self.base_url}" "/wiki/Special:Random"
             params = {}
 
-        response = self.session.get(
+        final_url = await self._get_final_url(
             url,
             params=params,
-            allow_redirects=True,
         )
-        response.raise_for_status()
 
-        parsed = urlsplit(response.url)
+        if final_url is None:
+            return None
+
+        parsed = urlsplit(final_url)
         query = parse_qs(parsed.query)
 
         if "title" in query:
             title = query["title"][0].replace("_", " ")
+
         elif parsed.path.startswith("/wiki/"):
             title = unquote(parsed.path[len("/wiki/") :]).replace("_", " ")
+
         else:
             return None
 
         if not title:
             return None
 
-        page_id = self.exact_match(title)
+        await asyncio.sleep(3)
+
+        page_id = await self.exact_match(title)
 
         if page_id < 0:
             return None

@@ -15,7 +15,13 @@ async def _send_followup_result(
         await followup.send(content="word not found on the chosen dict")
         return
 
-    defs, word = wik.definitions_by_id(page_id)
+    result = await wik.definitions_by_id(page_id)
+
+    if result is None:
+        await followup.send(content="failed to fetch definitions")
+        return
+
+    defs, word = result
 
     if word is None:
         await followup.send(content="word not found on the chosen dict")
@@ -24,7 +30,7 @@ async def _send_followup_result(
     parts = []
 
     for lang, definitions in defs.items():
-        formatted = Wiktionary.definitions_to_string(definitions)
+        formatted = wik.definitions_to_string(definitions)
 
         parts.append(f"**{lang}**\n{formatted}")
 
@@ -69,7 +75,7 @@ class WiktionaryCog(GroupCog, group_name="wiktionary"):
     ):
         await interaction.response.defer()
         wik = (self.vi_wiki, self.en_wiki)[dictionary]
-        page_id = wik.exact_match(word)
+        page_id = await wik.exact_match(word)
         await _send_followup_result(interaction.followup, wik, page_id)
 
     @app_commands.command(name="prefix", description="search by prefix")
@@ -93,9 +99,13 @@ class WiktionaryCog(GroupCog, group_name="wiktionary"):
     ):
         await interaction.response.defer()
         wik = (self.vi_wiki, self.en_wiki)[dictionary]
-        word_dict = wik.prefix_match(prefix, category)
+        word_dict = await wik.prefix_match(prefix, category)
 
-        if len(word_dict) == 0:
+        if word_dict is None:
+            await interaction.followup.send(content="failed to search the chosen dict")
+            return
+
+        if not word_dict:
             await interaction.followup.send(content="word not found on the chosen dict")
             return
 

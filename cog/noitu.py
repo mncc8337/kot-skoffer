@@ -11,6 +11,9 @@ class NoiTuCog(GroupCog, group_name="noitu"):
         self.bot = bot
         self.noitu = NoiTu(os.getenv("USER_AGENT"))
 
+    async def init(self, viwiktionary: bool):
+        await self.noitu.init(viwiktionary)
+
     @app_commands.command(
         name="batdau", description="bắt đầu game mới. chỉ dùng được trong DM"
     )
@@ -42,7 +45,9 @@ class NoiTuCog(GroupCog, group_name="noitu"):
     async def chuoi(self, interaction: Interaction):
         await self.noitu.chuoi(interaction)
 
-    @app_commands.command(name="tuky", description="chơi với bot. chỉ dùng trong server")
+    @app_commands.command(
+        name="tuky", description="chơi với bot. chỉ dùng trong server"
+    )
     async def tuky(self, interaction: Interaction):
         await self.noitu.tuky(interaction, self.bot)
 
@@ -67,5 +72,6 @@ class NoiTuCog(GroupCog, group_name="noitu"):
     async def on_message(self, message: Message):
         if message.author.bot:
             return
-        async with message.channel.typing():
-            await self.noitu.handle_gameloop_message(self.bot, message)
+        await self.noitu.handle_gameloop_message(
+            self.bot.user.display_name, message
+        )
