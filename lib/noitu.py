@@ -67,13 +67,6 @@ class NoiTu(data_loader.Data):
                     MessageInteractionAdapter(new_msg),
                 )
 
-        if not self.engine.compare_syllables(
-            syllables[0],
-            data["next_syllable"],
-        ):
-            await reject_attempt("từ hiện tại không nối với từ lúc trước")
-            return False
-
         for prev_attempt in data["chain"]:
             if self.engine.compare_words(
                 prev_attempt,
@@ -469,6 +462,12 @@ class NoiTu(data_loader.Data):
         syllables = self.engine.normalize(message.content).split()
 
         if len(syllables) != 2:
+            return
+
+        if not self.engine.compare_syllables(
+            syllables[0],
+            data["next_syllable"],
+        ):
             return
 
         async with message.channel.typing():

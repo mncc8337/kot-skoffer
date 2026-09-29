@@ -120,9 +120,8 @@ class Minhqnd:
             f"{self.api_url}lookup",
             params=params,
         ) as response:
-            if response.status != 200:
-                return None
-
+            # 404 is already handled by the server
+            # and is expected to always have a valid json
             return await response.json()
 
     async def suggest(self, prefix: str) -> dict | None:
