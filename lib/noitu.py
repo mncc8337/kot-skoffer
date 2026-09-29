@@ -82,6 +82,7 @@ class NoiTu(data_loader.Data):
                 await reject_attempt("từ đã lặp lại")
                 return False
 
+        # TODO: loop through all possible syllables combs
         if not await self.engine.exact(" ".join(syllables)):
             await reject_attempt("từ không tồn tại")
             return False

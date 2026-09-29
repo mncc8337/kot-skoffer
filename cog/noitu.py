@@ -34,6 +34,21 @@ class NoiTuCog(GroupCog, group_name="noitu"):
     async def gameloop(self, interaction: Interaction):
         await self.noitu.gameloop(interaction)
 
+    @gameloop.error
+    async def gameloop_error(
+        self,
+        interaction: Interaction,
+        error: app_commands.AppCommandError,
+    ):
+        if isinstance(error, app_commands.errors.MissingPermissions):
+            await interaction.response.send_message(
+                "❌ Mày cần quyền **Manage Channels** để dùng lệnh này.",
+                ephemeral=True,
+            )
+            return
+
+        raise error
+
     @app_commands.command(
         name="boqua",
         description="bỏ qua vòng chơi hiện tại. server cần phải có 3 người chạy lệnh này",
