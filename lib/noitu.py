@@ -12,16 +12,9 @@ def mutex(get_lock: Callable):
     def decorator(func):
         @wraps(func)
         async def wrapper(self, *args, **kwargs):
-            lock = get_lock(self, *args, **kwargs)
-
-            await lock.acquire()
-            try:
+            async with get_lock(self, *args, **kwargs):
                 return await func(self, *args, **kwargs)
-            finally:
-                lock.release()
-
         return wrapper
-
     return decorator
 
 
