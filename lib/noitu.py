@@ -95,16 +95,17 @@ class NoiTu(data_loader.Data):
                     MessageInteractionAdapter(new_msg),
                 )
 
+        all_combs = []
+        for s1 in self.engine.possible_syllables(syllables[0]):
+            for s2 in self.engine.possible_syllables(syllables[1]):
+                all_combs.append(s1 + " " + s2)
+
         for prev_attempt in data["chain"]:
-            if self.engine.compare_words(
-                prev_attempt,
-                " ".join(syllables),
-            ):
+            if any(self.engine.compare_words(word, prev_attempt) for word in all_combs):
                 await reject_attempt("từ đã lặp lại")
                 return False
 
-        # TODO: loop through all possible syllables combs
-        if not await self.engine.exact(" ".join(syllables)):
+        if all(not await self.engine.exact(word) for word in all_combs):
             await reject_attempt("từ không tồn tại")
             return False
 
@@ -451,7 +452,6 @@ class NoiTu(data_loader.Data):
 
         def_str, noerror = await self.engine.definition(word)
 
-        # TODO: use noerror
         await interaction.followup.send(
             content=def_str,
             suppress_embeds=True,
