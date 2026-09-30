@@ -3,6 +3,26 @@ from lib.wordengine import WordEngine, ViWiktionaryEngine, MinhqndEngine
 import lib.data_loader as data_loader
 from lib.message2interaction import MessageInteractionAdapter
 import random
+import asyncio
+from functools import wraps
+from collections.abc import Callable
+
+
+def mutex(get_lock: Callable):
+    def decorator(func):
+        @wraps(func)
+        async def wrapper(self, *args, **kwargs):
+            lock = get_lock(self, *args, **kwargs)
+
+            await lock.acquire()
+            try:
+                return await func(self, *args, **kwargs)
+            finally:
+                lock.release()
+
+        return wrapper
+
+    return decorator
 
 
 def _default_table():
@@ -14,6 +34,10 @@ def _default_table():
         "incorrect_count": 0,
         "channel_id": -1,
         "autistic": False,
+        "last_user": {
+            "userid": -1,
+            "mention": "",
+        },
     }
 
 
@@ -22,6 +46,12 @@ class NoiTu(data_loader.Data):
         super().__init__("data/noitu.json")
         self.user_agent = user_agent
         self.engine: WordEngine
+        self.locks: dict[int, asyncio.Lock] = {}
+
+    def _get_lock(self, channel_id: int):
+        if channel_id not in self.locks:
+            self.locks[channel_id] = asyncio.Lock()
+        return self.locks[channel_id]
 
     async def _noitiep(self, prefix: str) -> list[str]:
         next_syllable = self.engine.normalize(prefix.split()[-1])
@@ -54,9 +84,14 @@ class NoiTu(data_loader.Data):
                 await message.reply(content=f"{msg}. số lần thử lại {retry_count}/3")
                 self.save_data(data, target_id, target_type)
             else:
+                chain = "->".join(data["chain"])
+                mention = data["last_user"]["mention"]
+                if not mention:
+                    mention = "không ai"
                 new_msg = await message.reply(
                     content=(
-                        f"{msg}\ngame kết thúc. " f"độ dài chuỗi: {len(data["chain"])}"
+                        f"{msg}\ngame kết thúc. {mention} thắng\n"
+                        f"độ dài chuỗi: {len(data["chain"]) - 1}\n{chain}"
                     )
                 )
 
@@ -102,6 +137,9 @@ class NoiTu(data_loader.Data):
 
         await bot_message.add_reaction("✅")
 
+        data["last_user"]["mention"] = bot_display_name
+        data["last_user"]["userid"] = -1
+
         data["chain"].append(bot_attempt)
         data["next_syllable"] = bot_syllables[1]
 
@@ -113,7 +151,7 @@ class NoiTu(data_loader.Data):
                 msg = (
                     f"{bot_display_name} thắng\n"
                     f"game kết thúc. "
-                    f"độ dài chuỗi: {len(data["chain"])}\n"
+                    f"độ dài chuỗi: {len(data["chain"]) - 1}\n"
                     f"{chain}"
                 )
 
@@ -154,6 +192,9 @@ class NoiTu(data_loader.Data):
         data["next_syllable"] = newword.split(" ")[-1]
         data["incorrect_count"] = 0
         data["channel_id"] = interaction.channel.id
+        last_user = data["last_user"]
+        last_user["userid"] = -1
+        last_user["mention"] = ""
 
         self.save_data(data, target_id, target_type)
 
@@ -174,6 +215,9 @@ class NoiTu(data_loader.Data):
         data["next_syllable"] = ""
         data["incorrect_count"] = 0
         data["channel_id"] = -1
+        last_user = data["last_user"]
+        last_user["userid"] = -1
+        last_user["mention"] = ""
 
         self.save_data(data, target_id, target_type)
 
@@ -189,6 +233,7 @@ class NoiTu(data_loader.Data):
             self.engine = MinhqndEngine(self.user_agent)
             await self.engine.download_db()
 
+    @mutex(lambda self, interaction: self._get_lock(interaction.channel.id))
     async def batdau(self, interaction: Interaction):
         if interaction.guild is not None:
             await interaction.response.send_message(
@@ -216,6 +261,7 @@ class NoiTu(data_loader.Data):
             interaction,
         )
 
+    @mutex(lambda self, interaction: self._get_lock(interaction.channel.id))
     async def ketthuc(self, interaction: Interaction):
         if interaction.guild is not None:
             await interaction.response.send_message(
@@ -243,6 +289,7 @@ class NoiTu(data_loader.Data):
             interaction,
         )
 
+    @mutex(lambda self, interaction: self._get_lock(interaction.channel.id))
     async def gameloop(self, interaction: Interaction):
         if interaction.guild is None:
             await interaction.response.send_message(
@@ -257,6 +304,14 @@ class NoiTu(data_loader.Data):
         )
 
         if data["started"]:
+            if data["channel_id"] != interaction.channel.id:
+                await interaction.response.send_message(
+                    "một gameloop khác đã được"
+                    f"kích hoạt tại {interaction.channel.name}",
+                    ephemeral=True,
+                )
+                return
+
             await self._end_game(
                 data,
                 target_id,
@@ -271,6 +326,7 @@ class NoiTu(data_loader.Data):
                 interaction,
             )
 
+    @mutex(lambda self, interaction: self._get_lock(interaction.channel.id))
     async def boqua(self, interaction: Interaction):
         data, target_id, target_type = self.get_data(
             interaction,
@@ -321,6 +377,7 @@ class NoiTu(data_loader.Data):
             interaction,
         )
 
+    @mutex(lambda self, interaction: self._get_lock(interaction.channel.id))
     async def chuoi(self, interaction: Interaction):
         data, _, _ = self.get_data(
             interaction,
@@ -334,13 +391,10 @@ class NoiTu(data_loader.Data):
             )
             return
 
-        chain = data["chain"][0]
-
-        for word in data["chain"][1:]:
-            chain += "->" + word
-
+        chain = "->".join(data["chain"])
         await interaction.response.send_message(chain)
 
+    @mutex(lambda self, interaction, _: self._get_lock(interaction.channel.id))
     async def tuky(
         self,
         interaction: Interaction,
@@ -444,6 +498,7 @@ class NoiTu(data_loader.Data):
                 suppress_embeds=True,
             )
 
+    @mutex(lambda self, _, message: self._get_lock(message.channel.id))
     async def handle_gameloop_message(
         self,
         bot_display_name: str,
@@ -455,8 +510,12 @@ class NoiTu(data_loader.Data):
             interaction,
             _default_table(),
         )
+        last_user = data["last_user"]
 
         if not data["started"] or message.channel.id != data["channel_id"]:
+            return
+
+        if last_user["userid"] == message.author.id:
             return
 
         syllables = self.engine.normalize(message.content).split()
@@ -484,6 +543,8 @@ class NoiTu(data_loader.Data):
         data["next_syllable"] = syllables[1]
         data["incorrect_count"] = 0
         data["skip_users"].clear()
+        last_user["userid"] = message.author.id
+        last_user["mention"] = message.author.mention
 
         async with message.channel.typing():
             nextw = await self._noitiep(syllables[1])
@@ -501,9 +562,9 @@ class NoiTu(data_loader.Data):
         if len(filtered) == 0:
             chain = "->".join(data["chain"])
             msg = (
-                f"{message.author.display_name} thắng\n"
+                f"{message.author.mention} thắng\n"
                 f"game kết thúc. "
-                f"độ dài chuỗi: {len(data["chain"])}\n"
+                f"độ dài chuỗi: {len(data["chain"]) - 1}\n"
                 f"{chain}"
             )
 

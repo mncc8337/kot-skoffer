@@ -64,7 +64,7 @@ class NoiTuCog(GroupCog, group_name="noitu"):
         name="tuky", description="chơi với bot. chỉ dùng trong server"
     )
     async def tuky(self, interaction: Interaction):
-        await self.noitu.tuky(interaction, self.bot)
+        await self.noitu.tuky(interaction, self.bot.user.display_name)
 
     @app_commands.command(name="dinhnghia", description="lấy định nghĩa của 1 từ")
     @app_commands.describe(
