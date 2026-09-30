@@ -105,7 +105,12 @@ class NoiTu(data_loader.Data):
                 await reject_attempt("từ đã lặp lại")
                 return False
 
-        if all(not await self.engine.exact(word) for word in all_combs):
+        has_valid_word = False
+        for word in all_combs:
+            if await self.engine.exact(word):
+                has_valid_word = True
+                break
+        if not has_valid_word:
             await reject_attempt("từ không tồn tại")
             return False
 
@@ -508,9 +513,6 @@ class NoiTu(data_loader.Data):
         if not data["started"] or message.channel.id != data["channel_id"]:
             return
 
-        if last_user["userid"] == message.author.id:
-            return
-
         syllables = self.engine.normalize(message.content).split()
 
         if len(syllables) != 2:
@@ -520,6 +522,10 @@ class NoiTu(data_loader.Data):
             syllables[0],
             data["next_syllable"],
         ):
+            return
+
+        if last_user["userid"] == message.author.id:
+            await message.reply("cút, ai cho trả lời liên tục")
             return
 
         async with message.channel.typing():
