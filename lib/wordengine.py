@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 import random
 import asyncio
 import unicodedata
+import itertools
 from urllib.parse import quote
 
 from lib.wiktionary import Wiktionary
@@ -105,6 +106,19 @@ class WordEngine(ABC):
             i = j
 
         return result
+
+    @staticmethod
+    def possible_words(word: str) -> list[str]:
+        syllables = word.split()
+        all_syllables = [
+            WordEngine.possible_syllables(syl)
+            for syl in syllables
+        ]
+
+        return [
+            " ".join(combination)
+            for combination in itertools.product(*all_syllables)
+        ]
 
     @abstractmethod
     async def prefix(self, prefix: str) -> list[str]: ...

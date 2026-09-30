@@ -95,11 +95,7 @@ class NoiTu(data_loader.Data):
                     MessageInteractionAdapter(new_msg),
                 )
 
-        all_combs = []
-        for s1 in self.engine.possible_syllables(syllables[0]):
-            for s2 in self.engine.possible_syllables(syllables[1]):
-                all_combs.append(s1 + " " + s2)
-
+        all_combs = self.engine.possible_words(" ".join(syllables))
         for prev_attempt in data["chain"]:
             if any(self.engine.compare_words(word, prev_attempt) for word in all_combs):
                 await reject_attempt("từ đã lặp lại")
@@ -419,13 +415,14 @@ class NoiTu(data_loader.Data):
             )
 
             if data["started"]:
-                nextw = await self._noitiep(data["next_syllable"])
+                nextw_pool = await self._noitiep(data["next_syllable"])
 
                 filtered = [
                     word
-                    for word in nextw
+                    for word in nextw_pool
+                    for nword in self.engine.possible_words(word)
                     if not any(
-                        self.engine.compare_words(word, used) for used in data["chain"]
+                        self.engine.compare_words(nword, used) for used in data["chain"]
                     )
                 ]
 
@@ -546,13 +543,14 @@ class NoiTu(data_loader.Data):
         last_user["mention"] = message.author.mention
 
         async with message.channel.typing():
-            nextw = await self._noitiep(syllables[1])
+            nextw_pool = await self._noitiep(syllables[1])
 
             filtered = [
                 word
-                for word in nextw
+                for word in nextw_pool
+                for nword in self.engine.possible_words(word)
                 if not any(
-                    self.engine.compare_words(word, used) for used in data["chain"]
+                    self.engine.compare_words(nword, used) for used in data["chain"]
                 )
             ]
 
