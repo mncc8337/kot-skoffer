@@ -14,8 +14,29 @@ def mutex(get_lock: Callable):
         async def wrapper(self, *args, **kwargs):
             async with get_lock(self, *args, **kwargs):
                 return await func(self, *args, **kwargs)
+
         return wrapper
+
     return decorator
+
+
+def _get_chunks(words):
+    chunks = []
+    current_chunk = ""
+
+    for word in words:
+        if not current_chunk:
+            current_chunk = word
+        elif len(current_chunk) + len(word) + 2 > 1950:
+            chunks.append(current_chunk)
+            current_chunk = word
+        else:
+            current_chunk += f"->{word}"
+
+    if current_chunk:
+        chunks.append(current_chunk)
+
+    return chunks
 
 
 def _default_table():
@@ -77,16 +98,26 @@ class NoiTu(data_loader.Data):
                 await message.reply(content=f"{msg}. số lần thử lại {retry_count}/3")
                 self.save_data(data, target_id, target_type)
             else:
-                chain = "->".join(data["chain"])
                 mention = data["last_user"]["mention"]
                 if not mention:
                     mention = "không ai"
-                new_msg = await message.reply(
-                    content=(
-                        f"{msg}\ngame kết thúc. {mention} thắng\n"
-                        f"độ dài chuỗi: {len(data["chain"]) - 1}\n{chain}"
-                    )
+
+                chunks = _get_chunks(data["chain"])
+
+                msg = (
+                    f"{msg}\ngame kết thúc. {mention} thắng\n"
+                    f"độ dài chuỗi: {len(data["chain"]) - 1}\n"
                 )
+
+                if len(chunks[0]) + len(msg) < 1950:
+                    new_msg = await message.reply(content=msg + chunks[0])
+                    start_chunk = 1
+                else:
+                    new_msg = await message.reply(content=msg)
+                    start_chunk = 0
+
+                for i in range(start_chunk, len(chunks)):
+                    await message.channel.send(content=chunks[i])
 
                 await self._start_game(
                     data,
@@ -386,8 +417,17 @@ class NoiTu(data_loader.Data):
             )
             return
 
-        chain = "->".join(data["chain"])
-        await interaction.response.send_message(chain)
+        words = data["chain"]
+        if not words:
+            await interaction.response.send_message("Chuỗi hiện tại đang trống.")
+            return
+
+        chunks = _get_chunks(words)
+
+        await interaction.response.send_message(chunks[0])
+
+        for chunk in chunks[1:]:
+            await interaction.followup.send(chunk)
 
     @mutex(lambda self, interaction, _: self._get_lock(interaction.channel.id))
     async def tuky(
@@ -557,15 +597,22 @@ class NoiTu(data_loader.Data):
             await message.add_reaction("✅")
 
         if len(filtered) == 0:
-            chain = "->".join(data["chain"])
+            chunks = _get_chunks(data["chain"])
             msg = (
                 f"{message.author.mention} thắng\n"
                 f"game kết thúc. "
                 f"độ dài chuỗi: {len(data["chain"]) - 1}\n"
-                f"{chain}"
             )
 
-            await message.reply(content=msg)
+            if len(chunks[0]) + len(msg) < 1950:
+                await message.reply(content=msg + chunks[0])
+                start_chunk = 1
+            else:
+                await message.reply(content=msg)
+                start_chunk = 0
+
+            for i in range(start_chunk, len(chunks)):
+                await message.channel.send(content=chunks[i])
 
             await self._start_game(
                 data,
